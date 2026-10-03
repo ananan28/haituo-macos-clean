@@ -47,11 +47,12 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(!caishengSettingsWindow,`Unexpected floating settings window`);
             const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
             check(settingsLayout.scroll>settingsLayout.height,`Inline settings not scrollable`);
-            Z.webContents.focus();
-            await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').scrollTop=100`);
-            Z.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});
+            Z.focus();Z.webContents.focus();await wait(300);
+            await Z.webContents.executeJavaScript(`window.inlineWheelEvents=[];document.addEventListener('wheel',e=>window.inlineWheelEvents.push({deltaY:e.deltaY,target:e.target.tagName,prevented:e.defaultPrevented}),true);document.querySelector('.CaishengPlatformShell__settings').scrollTop=100`);
+            Z.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});await wait(100);
             Z.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaX:0,deltaY:-300,wheelTicksX:0,wheelTicksY:-3,canScroll:true,hasPreciseScrollingDeltas:true});await wait(400);
             const scrollTop=await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').scrollTop`);
+            states.push({stage:`inline-wheel-input`,settingsLayout,scrollTop,focused:Z.isFocused(),events:await Z.webContents.executeJavaScript(`window.inlineWheelEvents`)});
             check(Math.abs(scrollTop-100)>1,`Inline settings wheel did not scroll`);
             const originalSettings={...$p()};
             for(const provider of ['openai','groq']){
@@ -90,6 +91,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             await mouseClick('.HaituoBrand');await wait(700);await assertAbove(ids[0],`header-keeps-chat`);
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(800);
             await assertAbove(ids[0],`settings-stacking`);
+            const capture=(0,c.spawnSync)(`/usr/sbin/screencapture`,[`-x`,`${(0,s.dirname)(output)}/inline-settings.png`],{encoding:`utf8`});states.push({stage:`native-screen-capture`,status:capture.status,error:capture.stderr});
             check(!caishengSettingsWindow&&(await state(ids[0])).visible,`Settings hid Signal account`);
             const panelLeft=await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').getBoundingClientRect().left`);
             const chat=(await state(ids[0])).bounds,content=Z.getContentBounds();

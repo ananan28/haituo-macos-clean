@@ -71,4 +71,5 @@ jobs:
             macos/out/*.dmg
             macos/verification/*.json
             macos/verification/*.log
+            macos/verification/*.png
           if-no-files-found: error

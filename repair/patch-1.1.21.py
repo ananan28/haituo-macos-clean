@@ -10,6 +10,13 @@ s=change(s,'    Z.show();\n    Z.moveTop();\n    Z.focus();\n    Z.webContents.f
 s=change(s,'    $u !== `signal-main` && Object.assign(g, {\n        frame: !1,','    $u !== `signal-main` && Object.assign(g, {\n        titleBarStyle: `default`,\n        frame: !1,')
 s=change(s,'    Z = new p.BrowserWindow(g), p.Menu.setApplicationMenu(null)', '    Z = new p.BrowserWindow(g), (process.platform===`darwin`&&$u!==`signal-main`&&Z.setWindowButtonVisibility(false)), p.Menu.setApplicationMenu(null)')
 s=s.replace('win.setAlwaysOnTop(!0, `screen-saver`, 1), win.show(), win.moveTop(), win.focus();','win.setAlwaysOnTop(false), win.show(), win.focus();')
+s=change(s,'''    for (const delay of [ 50, 150, 320 ]) setTimeout(() => {
+        if (!win || win.isDestroyed()) return;
+        try {
+            haituoMacOrderSelectedAccount();
+        win.setAlwaysOnTop(false), win.show(), win.focus();
+        } catch {}
+    }, delay);''','''    // A user-requested overlay must not reclaim focus after another app is activated.''')
 s=change(s,'async function haituoShowSettingsWindow() {','''async function haituoShowSettingsWindow() {
     if(process.platform===`darwin`){
         if($u!==`signal-main`){process.send?.({type:`haituo-show-settings-panel`});return{ok:true}}

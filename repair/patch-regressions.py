@@ -71,8 +71,8 @@ s=replace(s,'    style.textContent=`#haituo-whatsapp-translator', '    const css
 s=replace(s,'-webkit-text-fill-color:#fff!important}`;\n}', '-webkit-text-fill-color:#fff!important}`;\n    if(style.textContent!==css) style.textContent=css;\n}')
 s=replace(s,'''    if (!composer?.isConnected) return;
     const footer = composer.closest("footer") || composer;''','''    if (!composer?.isConnected || !usableComposer(composer) || document.querySelector('[data-testid="media-viewer"],[data-testid="media-editor"],[role="dialog"][aria-modal="true"]')) {
-        panel.style.display = "none";
-        translatorFooter?.style.removeProperty("margin-bottom");
+        if (panel.style.display !== "none") panel.style.display = "none";
+        if (translatorFooter?.style.getPropertyValue("margin-bottom")) translatorFooter.style.removeProperty("margin-bottom");
         return;
     }
     const footer = composer.closest("footer") || composer;''')
@@ -92,6 +92,7 @@ const haituoScheduleTranslatorLayout = () => {
     });
 };
 new MutationObserver(records => {
+    if (document.querySelector('[data-testid="media-viewer"],[data-testid="media-editor"],[role="dialog"][aria-modal="true"]')) positionTranslator(findComposer());
     if (records.some(record => !record.target.closest?.('#haituo-whatsapp-translator,#haituo-api-settings,footer,style'))) haituoScheduleTranslatorLayout();
 }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
 '''

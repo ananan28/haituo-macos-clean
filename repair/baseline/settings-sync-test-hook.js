@@ -82,15 +82,21 @@ async function haituoTestSettingsSync() {
         const savedFetch=globalThis.fetch,audioCalls=[];
         const audioHandler=p.ipcMain._invokeHandlers.get('caisheng:transcribe-audio'),audioEvent={senderFrame:{url:'https://web.whatsapp.com/'}},audio={bytes:[1,2,3,4,5],mimeType:'audio/ogg',fileName:'fixture.ogg'};
         try{
-            haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',apiKey:'Bearer fixture-key',endpoint:'https://api.example.test/v1/chat/completions'});
+            haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'Bearer fixture-key',openaiVoiceEndpoint:'https://api.example.test/v1/chat/completions',openaiVoiceModel:'',apiKey:'Bearer fixture-key',endpoint:'https://api.example.test/v1/chat/completions'});
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),authMatched:options.headers.Authorization==='Bearer fixture-key'});return new Response('{}',{status:401})};
             let rejected='';try{await audioHandler(audioEvent,audio)}catch(error){rejected=String(error.message)}
+            stages.push({source:'audio-auth-attempt',audioCalls:[...audioCalls],rejected});
             check(audioCalls.length===1&&rejected.includes('认证失败')&&audioCalls[0].authMatched&&audioCalls[0].url==='https://api.example.test/v1/audio/transcriptions','401 audio auth/routing incorrect');
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return options.body.get('model')==='whisper-1'?new Response(JSON.stringify({text:'fixture transcription'}),{status:200}):new Response('{}',{status:400})};
             const transcribed=await audioHandler(audioEvent,audio);check(transcribed.text==='fixture transcription'&&audioCalls.length===3,'Whisper unsupported-model fallback failed');
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'groq',groqApiKey:'fixture-groq'});
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return new Response(JSON.stringify({text:'groq fixture transcription'}),{status:200})};
             const groq=await audioHandler(audioEvent,audio);check(groq.text==='groq fixture transcription'&&audioCalls.length===4,'Selected provider reused another provider cache');
+            const textCalls=[];
+            globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);textCalls.push({url,model:body.model,authMatched:options.headers.Authorization==='Bearer fixture-text'});return new Response(JSON.stringify({choices:[{message:{content:'文字路由测试'}}]}),{status:200})};
+            const textResult=await p.ipcMain._invokeHandlers.get('caisheng:translate')(audioEvent,{text:'dedicated text route test',provider:'openai',purpose:'test',forceRefresh:true,strictProvider:true,apiKey:'Bearer fixture-text',endpoint:'https://text.example.test/v1/chat/completions/',model:'text-fixture-model'});
+            check(textResult.text==='文字路由测试'&&textCalls.length===1&&textCalls[0].authMatched&&textCalls[0].url==='https://text.example.test/v1/chat/completions'&&textCalls[0].model==='text-fixture-model','Text route adds duplicate endpoint/Bearer or inherits voice model');
+            stages.push({source:'openai-text-routing',textCalls,result:textResult});
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'fixture-dedicated',openaiVoiceEndpoint:'https://voice.example.test/v1/audio/transcriptions',openaiVoiceModel:'whisper-1',apiKey:'different-text-key',endpoint:'https://text.example.test/v1',model:'text-only-model'});
             const count=audioCalls.length;
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),dedicatedKey:options.headers.Authorization==='Bearer fixture-dedicated'});return new Response(JSON.stringify({text:'dedicated voice fixture'}),{status:200})};

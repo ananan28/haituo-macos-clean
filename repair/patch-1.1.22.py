@@ -4,6 +4,22 @@ def change(s,a,b):
     assert s.count(a)==1,(a[:120],s.count(a))
     return s.replace(a,b,1)
 p=root/'bundles/main.js';s=p.read_text()
+s=change(s,'async function Yp(e, t, n, r = !1) {', '''function haituoCompatibleEndpoint(value,defaultBase,path){
+    const base=String(value||defaultBase).trim().replace(/\/+$/u,``).replace(/\/(chat\/completions|audio\/transcriptions|responses)$/u,``);
+    const url=new URL(base);if(![`https:`,`http:`].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw Error(`API 地址格式错误，请填写服务商的 API 基础地址`);
+    if(url.hostname===`api.openai.com`&&(!url.pathname||url.pathname===`/`))return `${url.origin}/v1/${path}`;
+    return `${base}/${path}`;
+}
+async function Yp(e, t, n, r = !1) {''')
+s=change(s,'    if (!a.ok) throw Error(`HTTP ${a.status}`);\n    return a.json();','''    if (!a.ok){
+        let code=``;try{const body=await a.json(),raw=String(body?.error?.code||body?.error?.type||``);if(/^[a-zA-Z0-9_-]{1,80}$/u.test(raw))code=raw}catch{}
+        const url=new URL(e);let model=``;try{const value=JSON.parse(t?.body||`{}`).model;if(typeof value===`string`&&/^[a-zA-Z0-9._:/-]{1,120}$/u.test(value))model=value}catch{}
+        const error=Error(`HTTP ${a.status}${a.status===401||a.status===403?`（认证失败，请核对该服务的密钥与地址）`:``}；地址：${url.origin}${url.pathname}${model?`；模型：${model}`:``}${code?`；服务错误：${code}`:``}`);error.status=a.status;throw error;
+    }
+    return a.json();''')
+s=change(s,'o = (await Yp(`${typeof e.endpoint == `string` && e.endpoint ? e.endpoint.replace(/\/$/u, ``) : r === `groq` ? `https://api.groq.com/openai/v1` : r === `deepseek` ? `https://api.deepseek.com/v1` : `https://api.openai.com/v1`}/chat/completions`, {','o = (await Yp(haituoCompatibleEndpoint(e.endpoint,r === `groq` ? `https://api.groq.com/openai/v1` : r === `deepseek` ? `https://api.deepseek.com/v1` : `https://api.openai.com/v1`,`chat/completions`), {')
+s=change(s,'Authorization: `Bearer ${e.apiKey}`,','Authorization: `Bearer ${String(e.apiKey).trim().replace(/^Bearer\s+/iu,``)}`,')
+s=change(s,'apiKey: profile.apiKey.trim(), endpoint: String(profile.endpoint', 'apiKey: profile.apiKey.trim().replace(/^Bearer\s+/iu,``), endpoint: String(profile.endpoint')
 s=change(s,'    const child=Yg.get(Zg?.id);','    if(!Z.isFocused() && !caishengFocusedSignals.has(Zg?.id) && !caishengMenuOpen)return;\n    const child=Yg.get(Zg?.id);')
 s=change(s,'        if(Yg.get(t)===r&&e?.type===`haituo-show-settings-panel`)', '''        if(Yg.get(t)===r&&e?.type===`haituo-account-focus`){
             e.focused?caishengFocusedSignals.add(t):caishengFocusedSignals.delete(t);
@@ -77,6 +93,8 @@ s=change(s,'                    try {\n                        const control = v
 s=change(s,'try { captured = await ipcRenderer.invoke("caisheng:capture-voice-media", { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }); } catch {}','try { if(!e.querySelector("audio[src],audio source[src]"))captured = await ipcRenderer.invoke("caisheng:capture-voice-media", { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }); } catch {}')
 s=change(s,'                    }\n                }, voiceMount.append(voice);','''                    } finally {
                         if(muteAcquired){
+                            const pause=e.querySelector('button[aria-label*="pause" i],button[aria-label*="暂停"],[data-icon*="audio-pause" i],[data-icon*="ptt-pause" i]');
+                            try{(pause?.closest('button,[role="button"]')||pause)?.click()}catch{}
                             await webFrame.executeJavaScript(`(()=>{document.querySelectorAll('audio,video').forEach(media=>{try{media.pause()}catch{}})})()`).catch(()=>{});
                             await ipcRenderer.invoke("caisheng:capture-voice-media",{muteOnly:false}).catch(()=>{});
                         }

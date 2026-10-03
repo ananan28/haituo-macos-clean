@@ -124,9 +124,12 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                 const account=await state(ids[0]),childIndex=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));
                 check(childIndex>=0&&childIndex<rootIndex&&rootIndex<externalIndex,'Activating Signal leaves parent behind external app');
                 states.push({stage:'child-activation-window-group',childIndex,rootIndex,externalIndex});
-                (0,c.spawnSync)(process.env.HAITUO_WINDOW_ORDER_TOOL,['--activate',String(foreground.pid)],{encoding:'utf8'});
-                for(let sample=0;sample<5;sample++){await wait(150);stacking=windowOrder();externalIndex=stacking.findIndex(w=>Number(w.pid)===foreground.pid);rootIndex=stacking.findIndex(w=>w.id===Number(Z.getMediaSourceId().split(':')[1]));const ci=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));check(externalIndex>=0&&externalIndex<ci&&externalIndex<rootIndex,'Delayed account ordering covers another app');}
-                states.push({stage:'external-reactivation-after-child',ok:true});
+                const nextForeground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,['--foreground-window'],{stdio:'ignore'});
+                try{
+                    await wait(1000);
+                    for(let sample=0;sample<5;sample++){await wait(150);stacking=windowOrder();externalIndex=stacking.findIndex(w=>Number(w.pid)===nextForeground.pid);rootIndex=stacking.findIndex(w=>w.id===Number(Z.getMediaSourceId().split(':')[1]));const ci=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));states.push({stage:'external-after-child-sample',externalIndex,rootIndex,childIndex:ci,rootFocused:Z.isFocused(),focusedAccounts:[...caishengFocusedSignals]});check(externalIndex>=0&&externalIndex<ci&&externalIndex<rootIndex,'Delayed account ordering covers another app');}
+                    states.push({stage:'external-activation-after-child',ok:true});
+                }finally{nextForeground.kill()}
             }finally{foreground.kill()}
             Z.focus();Z.moveTop();await wait(500);
             const selected=await state(ids[0]);

@@ -1,6 +1,7 @@
-import json, os, pathlib, signal, subprocess, tempfile, time
+import json, os, pathlib, plistlib, signal, subprocess, tempfile, time
 
 app = pathlib.Path('macos/out/海拓-darwin-arm64/海拓.app/Contents/MacOS/海拓').resolve()
+assert plistlib.loads((app.parent.parent/'Info.plist').read_bytes()).get('LSUIElement') is True
 out = pathlib.Path('macos/verification').resolve()
 out.mkdir(parents=True, exist_ok=True)
 result = out / 'runtime.json'

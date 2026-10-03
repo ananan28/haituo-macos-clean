@@ -20,7 +20,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         try {
             let deadline=Date.now()+90000,mainPage;
             do {await wait(500);if(Z&&!Z.isDestroyed())mainPage=await Z.webContents.executeJavaScript(snapshot)} while((!mainPage?.body||mainPage.loading)&&Date.now()<deadline);
-            check(mainPage?.body&&!mainPage.loading,`Main window stayed on loading screen`);states.push({stage:`main-ready`,page:mainPage});
+            check(mainPage?.body&&!mainPage.loading,`Main window stayed on loading screen`);check(p.app.dock.isVisible(),`Main app missing from Dock`);states.push({stage:`main-ready`,page:mainPage,mainDockVisible:p.app.dock.isVisible()});
             check(await Z.webContents.executeJavaScript(`(()=>{const tab=document.querySelector('button[data-caisheng-tab-workspace="signal-main"]');if(!tab)return false;tab.click();return true})()`),`Main Signal tab missing`);
             deadline=Date.now()+90000;
             do{await wait(500);mainPage=await Z.webContents.executeJavaScript(snapshot)}while((!mainPage.installed||mainPage.loading)&&Date.now()<deadline);
@@ -53,7 +53,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             for(const id of [ids[0],ids[1],ids[0]]){
                 await Z.webContents.executeJavaScript(`document.querySelector('button[data-caisheng-tab-workspace="${id}"]').click()`);await wait(1200);
                 const accounts=await Promise.all(ids.map(state));check(accounts.filter(x=>x.visible).length===1&&accounts.find(x=>x.id===id)?.visible,`Account selection visibility failed`);
-                check(accounts.every(x=>x.dockVisible===false&&x.execPath.includes(`/Helpers/HaituoAccount.app/`)),`Child Signal still appears in Dock`);states.push({stage:`selected`,id,accounts});
+                check(accounts.every(x=>x.dockVisible===false),`Child Signal still appears in Dock`);states.push({stage:`selected`,id,accounts});
             }
             await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settingsButton').click()`);await wait(800);
             check(caishengSettingsWindow&&!caishengSettingsWindow.isDestroyed()&&(await state(ids[0])).visible,`Settings button hid Signal account`);

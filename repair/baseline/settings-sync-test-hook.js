@@ -66,6 +66,27 @@ async function haituoTestSettingsSync() {
         const viewerHidden=await mediaWin.webContents.executeJavaScript(`getComputedStyle(document.getElementById('haituo-whatsapp-translator')).display==='none'`);
         check(viewerHidden,'Translator still covers media viewer');
         stages.push({source:'media-layout-fixture',media,viewerHidden});
+        await mediaWin.webContents.executeJavaScript(`document.getElementById('fixture-viewer').remove()`);
+        for(const hidden of [true,false,true]){
+            haituoApplyTranslationConfig({...$p(),hideTranslationBox:hidden});await delay(1500);
+            const state=await mediaWin.webContents.executeJavaScript(`({hidden:!!document.getElementById('haituo-wa-translator-toggle'),expanded:!!document.querySelector('#haituo-whatsapp-translator textarea')})`);
+            check(hidden?state.hidden&&!state.expanded:!state.hidden&&state.expanded,'Global hide translation setting did not update guest');
+            stages.push({source:'hide-translation-toggle',hidden,state});
+        }
+        const savedFetch=globalThis.fetch,audioCalls=[];
+        const audioHandler=p.ipcMain._invokeHandlers.get('caisheng:transcribe-audio'),audioEvent={senderFrame:{url:'https://web.whatsapp.com/'}},audio={bytes:[1,2,3,4,5],mimeType:'audio/ogg',fileName:'fixture.ogg'};
+        try{
+            haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',apiKey:'Bearer fixture-key',endpoint:'https://api.example.test/v1/chat/completions'});
+            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),authMatched:options.headers.Authorization==='Bearer fixture-key'});return new Response('{}',{status:401})};
+            let rejected='';try{await audioHandler(audioEvent,audio)}catch(error){rejected=String(error.message)}
+            check(audioCalls.length===1&&rejected.includes('认证失败')&&audioCalls[0].authMatched&&audioCalls[0].url==='https://api.example.test/v1/audio/transcriptions','401 audio auth/routing incorrect');
+            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return options.body.get('model')==='whisper-1'?new Response(JSON.stringify({text:'fixture transcription'}),{status:200}):new Response('{}',{status:400})};
+            const transcribed=await audioHandler(audioEvent,audio);check(transcribed.text==='fixture transcription'&&audioCalls.length===3,'Whisper unsupported-model fallback failed');
+            haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'groq',groqApiKey:'fixture-groq'});
+            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return new Response(JSON.stringify({text:'groq fixture transcription'}),{status:200})};
+            const groq=await audioHandler(audioEvent,audio);check(groq.text==='groq fixture transcription'&&audioCalls.length===4,'Selected provider reused another provider cache');
+            stages.push({source:'audio-routing-fixture',audioCalls,rejected,transcribed,groq});
+        }finally{globalThis.fetch=savedFetch}
         try {
             const handler=p.ipcMain._invokeHandlers.get('caisheng:translate');
             const value={text:'Hello. Please keep the number 113.',targetLanguage:'zh-CN',provider:'google-free',purpose:'chat'};

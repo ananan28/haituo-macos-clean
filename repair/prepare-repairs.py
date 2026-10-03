@@ -7,5 +7,6 @@ for name in ['account-windows','window-lifecycle','native-interface','message-sc
 runpy.run_path('repair/patch-regressions.py',run_name='__main__')
 runpy.run_path('repair/patch-1.1.19.py',run_name='__main__')
 runpy.run_path('repair/patch-1.1.20.py',run_name='__main__')
+runpy.run_path('repair/patch-1.1.21.py',run_name='__main__')
 p=Path('macos/staging/app/bundles/main.js')
 p.write_text(p.read_text()+'\n'+Path('repair/verify-runtime.js').read_text())

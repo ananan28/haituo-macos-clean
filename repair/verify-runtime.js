@@ -43,34 +43,18 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             deadline=Date.now()+90000;
             do{await wait(500);mainPage=await Z.webContents.executeJavaScript(snapshot)}while((!mainPage.installed||mainPage.loading)&&Date.now()<deadline);
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
-        haituoApplyTranslationConfig({...$p(),chatTextColor:'',outgoingBubbleColor:'',incomingBubbleColor:''});
-        check((await haituoShowSettingsWindow()).ok && caishengSettingsWindow,`Native settings window did not open`);
-        states.push({stage:`native-settings-created`,url:caishengSettingsWindow.webContents.getURL()});
-        let settingsDeadline=Date.now()+10000;
-        while(caishengSettingsWindow && caishengSettingsWindow.webContents.isLoading()&&Date.now()<settingsDeadline)await wait(100);
-        check(caishengSettingsWindow,`Native settings window closed while loading`);
-        const settingsLayout=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const scroll=document.querySelector('.scroll'),footer=document.querySelector('.footer').getBoundingClientRect(),rect=scroll.getBoundingClientRect();return{scrollHeight:scroll.scrollHeight,clientHeight:scroll.clientHeight,overflow:getComputedStyle(scroll).overflowY,footerBottom:footer.bottom,viewport:innerHeight,x:Math.round(rect.x+25),y:Math.round(rect.y+90)}})()`);
-        check(settingsLayout.scrollHeight>settingsLayout.clientHeight&&settingsLayout.footerBottom<=settingsLayout.viewport+1,`Settings content/footer are clipped`);
-        caishengSettingsWindow.show();caishengSettingsWindow.focus();caishengSettingsWindow.webContents.focus();await wait(300);
-        await caishengSettingsWindow.webContents.executeJavaScript(`window.haituoWheelSeen=[];document.addEventListener('wheel',event=>window.haituoWheelSeen.push({deltaY:event.deltaY,target:event.target.tagName,prevented:event.defaultPrevented}),true);document.querySelector('.scroll').scrollTop=120`);
-        caishengSettingsWindow.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});
-        caishengSettingsWindow.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaX:0,deltaY:-300,wheelTicksX:0,wheelTicksY:-3,canScroll:true,hasPreciseScrollingDeltas:true});await wait(400);
-        const scrollTop=await caishengSettingsWindow.webContents.executeJavaScript(`document.querySelector('.scroll').scrollTop`);
-        const wheelSeen=await caishengSettingsWindow.webContents.executeJavaScript(`window.haituoWheelSeen`);states.push({stage:`wheel-input`,scrollTop,settingsLayout,wheelSeen,focused:caishengSettingsWindow.isFocused()});
-        check(Math.abs(scrollTop-120)>1,`Actual mouse wheel did not scroll settings`);
-        const bottomVisible=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const scroll=document.querySelector('.scroll');scroll.scrollTop=scroll.scrollHeight;const last=document.getElementById('resetColors').getBoundingClientRect(),footer=document.querySelector('.footer').getBoundingClientRect();return last.top>=scroll.getBoundingClientRect().top&&last.bottom<=footer.top+1})()`);check(bottomVisible,`Last settings fields remain inaccessible`);
-        const providers=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{
-            const original={input:form.inputTranslationProvider.value,chat:form.chatTranslationProvider.value,voice:form.voiceTranscriptionProvider.value,apiKey:form.apiKey.value,groqApiKey:form.groqApiKey.value},cases=[];
-            form.apiKey.value='fixture-openai-key';form.groqApiKey.value='fixture-groq-key';
-            for(const provider of ['openai','deepl','groq']){form.inputTranslationProvider.value=provider;form.chatTranslationProvider.value=provider;form.voiceTranscriptionProvider.value='groq';form.inputTranslationProvider.dispatchEvent(new Event('change',{bubbles:true}));cases.push({provider,openaiVisible:!form.apiKey.closest('label').hidden,deepLVisible:!form.deepLApiKey.closest('label').hidden,groqVisible:!form.groqApiKey.closest('label').hidden,label:form.apiKey.closest('label').textContent,preserved:form.apiKey.value==='fixture-openai-key'&&form.groqApiKey.value==='fixture-groq-key'})}
-            form.inputTranslationProvider.value=original.input;form.chatTranslationProvider.value=original.chat;form.voiceTranscriptionProvider.value=original.voice;form.apiKey.value=original.apiKey;form.groqApiKey.value=original.groqApiKey;syncProviderFields();document.querySelector('.scroll').scrollTop=0;return cases;
-        })()`);
-        check(providers.every(row=>row.preserved)&&providers[0].openaiVisible&&providers[0].label.includes('OpenAI API Key')&&!providers[0].deepLVisible&&!providers[1].openaiVisible&&providers[1].deepLVisible&&!providers[2].openaiVisible&&providers[2].groqVisible,`API fields did not follow provider selection`);
-        states.push({stage:`settings-scroll-and-providers`,settingsLayout,scrollTop,providers});
-        const nativeColor=await Promise.race([caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const before=collect().outgoingBubbleColor,chosen=form.outgoingBubbleColor.value,preview=form.outgoingBubbleColor.oninput;form.outgoingBubbleColor.oninput=()=>setTimeout(preview,0);form.outgoingBubbleColor.dispatchEvent(new Event('input',{bubbles:true}));return{before,chosen,after:collect().outgoingBubbleColor}})()`),wait(20000).then(()=>{throw Error('Native color picker script timed out')})]);
-        check(nativeColor.before===''&&nativeColor.after===nativeColor.chosen,'Native settings drops an explicitly chosen default bubble color');
-        await wait(300);check($p().outgoingBubbleColor===nativeColor.chosen,'Native color preview did not save');
-        caishengSettingsWindow.close();states.push({source:'native-color-picker',nativeColor});
+            await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
+            check(!caishengSettingsWindow,`Unexpected floating settings window`);
+            const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
+            check(settingsLayout.scroll>settingsLayout.height,`Inline settings not scrollable`);
+            Z.webContents.focus();
+            await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').scrollTop=100`);
+            Z.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});
+            Z.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaX:0,deltaY:-300,wheelTicksX:0,wheelTicksY:-3,canScroll:true,hasPreciseScrollingDeltas:true});await wait(400);
+            const scrollTop=await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').scrollTop`);
+            check(Math.abs(scrollTop-100)>1,`Inline settings wheel did not scroll`);
+            await mouseClick('.CaishengPlatformShell__settingsButton');await wait(400);
+            states.push({stage:`inline-settings-wheel`,settingsLayout,scrollTop});
 
             const launch=p.ipcMain._invokeHandlers.get(`caisheng:launch-signal-profile`),sync=p.ipcMain._invokeHandlers.get(`caisheng:sync-signal-profile`);
             check(typeof launch===`function`&&typeof sync===`function`,`Missing account handlers`);
@@ -95,14 +79,28 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             await mouseClick('.HaituoPlatformFilters button:first-child');await wait(700);await assertAbove(ids[0],`all-filter-keeps-chat`);
             await mouseClick('.HaituoBrand');await wait(700);await assertAbove(ids[0],`header-keeps-chat`);
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(800);
-            await assertAbove(ids[0],`settings-stacking`,caishengSettingsWindow);
-            check(caishengSettingsWindow&&!caishengSettingsWindow.isDestroyed()&&(await state(ids[0])).visible,`Settings button hid Signal account`);
-            caishengSettingsWindow.close();states.push({stage:`settings-keeps-account-visible`});
+            await assertAbove(ids[0],`settings-stacking`);
+            check(!caishengSettingsWindow&&(await state(ids[0])).visible,`Settings hid Signal account`);
+            const panelLeft=await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').getBoundingClientRect().left`);
+            const chat=(await state(ids[0])).bounds,content=Z.getContentBounds();
+            check(chat.x+chat.width<=content.x+panelLeft+2,`Signal covers inline settings`);
+            await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
+            states.push({stage:`settings-keeps-account-visible`,chat,panelLeft});
+            const foreground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,[`--foreground-window`],{stdio:`ignore`});
+            try{
+                for(let attempt=0;attempt<3;attempt++){
+                    await wait(1000);
+                    const stacking=windowOrder(),externalIndex=stacking.findIndex(win=>Number(win.pid)===foreground.pid),rootIndex=stacking.findIndex(win=>win.id===Number(Z.getMediaSourceId().split(`:`)[1])),account=await state(ids[0]),childIndex=stacking.findIndex(win=>win.id===Number(account.windowId.split(`:`)[1]));
+                    check(externalIndex>=0&&externalIndex<rootIndex&&externalIndex<childIndex,`Haituo covers external foreground app`);
+                    states.push({stage:`external-app-foreground`,externalIndex,rootIndex,childIndex});
+                }
+            }finally{foreground.kill()}
+            Z.focus();Z.moveTop();await wait(500);
             const selected=await state(ids[0]);
             const original=Z.getBounds();Z.setBounds({...original,x:original.x+35,y:original.y+25});await wait(1200);
             const moved=await state(ids[0]);check(Math.abs(moved.bounds.x-selected.bounds.x-35)<=2&&Math.abs(moved.bounds.y-selected.bounds.y-25)<=2,`Account did not follow parent movement`);states.push({stage:`moved`,bounds:moved.bounds});
             const overlay=new p.BrowserWindow({show:false,width:350,height:250,parent:Z});
-            try {haituoRaiseOverlayWindow(overlay);await wait(1000);check((await state(ids[0])).visible&&overlay.isAlwaysOnTop(),`Native overlay hid account`)} finally{overlay.destroy()}
+            try {haituoRaiseOverlayWindow(overlay);await wait(1000);check((await state(ids[0])).visible&&!overlay.isAlwaysOnTop(),`Native overlay hid account`)} finally{overlay.destroy()}
             await wait(1000);check((await state(ids[0])).visible,`Account did not return after overlay`);
             deadline=Date.now()+90000;let page;
             do{page=(await state(ids[0])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);

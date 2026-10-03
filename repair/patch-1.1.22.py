@@ -57,6 +57,8 @@ fields='''                    }), m.voiceTranscriptionProvider===`openai`?(0,O9.
                     ]}):null,(0, O9.jsxs)(`div`, {
                         style: { marginTop: `6px`, padding: `8px 10px`'''
 s=change(s,marker,fields)
+s=s.replace('[ m.inputTranslationProvider, m.chatTranslationProvider, m.voiceTranscriptionProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e))','[ m.inputTranslationProvider, m.chatTranslationProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e))')
+s=s.replace('[ m.inputTranslationProvider, m.chatTranslationProvider, m.voiceTranscriptionProvider ].some(e => [ `openai`, `qwen`, `glm`, `deepseek` ].includes(e))','[ m.inputTranslationProvider, m.chatTranslationProvider ].some(e => [ `openai`, `qwen`, `glm`, `deepseek` ].includes(e))')
 s=s.replace('当前版本 1.1.21','当前版本 1.1.22').replace('海拓 1.1.21','海拓 1.1.22');p.write_text(s)
 p=root/'stylesheets/haituo-layout.css';p.write_text(p.read_text()+'''\n/* Inactive guests must never paint through native account gaps or focus transitions. */
 .CaishengPlatformShell__content[data-haituo-native-account="true"]>.CaishengPlatformShell__webview,.CaishengPlatformShell__webview[data-haituo-active="false"]{visibility:hidden!important;opacity:0!important;pointer-events:none!important}

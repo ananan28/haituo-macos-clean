@@ -69,7 +69,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                 await Z.webContents.executeJavaScript(`(()=>{const label=[...document.querySelectorAll('.CaishengPlatformShell__settings label')].find(e=>e.querySelector('span')?.textContent==='语音转文字服务'),select=label.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(provider)});select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
                 await wait(300);
                 check($p().voiceTranscriptionProvider===provider,`Voice provider was not saved immediately`);
-                const fieldShown=await Z.webContents.executeJavaScript(`(()=>{const labels=[...document.querySelectorAll('.CaishengPlatformShell__settings label')];return labels.some(e=>e.textContent.includes(${JSON.stringify(provider==='openai'?'OpenAI / 兼容服务 API Key':'Groq API Key')})&&e.querySelector('input[type=password]'))})()`);
+                const fieldShown=await Z.webContents.executeJavaScript(`(()=>{const labels=[...document.querySelectorAll('.CaishengPlatformShell__settings label')];return labels.some(e=>e.textContent.includes(${JSON.stringify(provider==='openai'?'OpenAI 音转文 API Key':'Groq API Key')})&&e.querySelector('input[type=password]'))})()`);
                 check(fieldShown,`API field missing for selected voice provider`);states.push({stage:'inline-voice-provider',provider,fieldShown});
             }
             haituoApplyTranslationConfig(originalSettings);await wait(200);

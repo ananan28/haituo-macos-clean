@@ -5,7 +5,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         if (event?.type !== `haituo-verify-state` || !Z || Z.isDestroyed()) return;
         try {
             const page = await Z.webContents.executeJavaScript(snapshot);
-            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),page,dockVisible:p.app.dock?.isVisible()});
+            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),page,dockVisible:p.app.dock?.isVisible(),execPath:process.execPath});
         } catch (error) { process.send?.({type:`haituo-verify-result`,requestId:event.requestId,error:String(error)}); }
     });
     else p.app.whenReady().then(async () => {
@@ -41,7 +41,6 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             for(let account=0;account<2;account++){
                 const beforeIds=new Set(Yg.keys());
                 await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__add').click()`);await wait(500);
-                await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__picker button')].find(button=>button.textContent.includes('Signal')).click()`);
                 deadline=Date.now()+90000;let id;
                 while(!(id=[...Yg.keys()].find(id=>!beforeIds.has(id)))&&Date.now()<deadline)await wait(250);
                 check(id,`Actual add-account UI did not launch Signal`);ids.push(id);
@@ -54,13 +53,16 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             for(const id of [ids[0],ids[1],ids[0]]){
                 await Z.webContents.executeJavaScript(`document.querySelector('button[data-caisheng-tab-workspace="${id}"]').click()`);await wait(1200);
                 const accounts=await Promise.all(ids.map(state));check(accounts.filter(x=>x.visible).length===1&&accounts.find(x=>x.id===id)?.visible,`Account selection visibility failed`);
-                check(accounts.every(x=>x.dockVisible===false),`Child Signal still appears in Dock`);states.push({stage:`selected`,id,accounts});
+                check(accounts.every(x=>x.dockVisible===false&&x.execPath.includes(`/Helpers/HaituoAccount.app/`)),`Child Signal still appears in Dock`);states.push({stage:`selected`,id,accounts});
             }
+            await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settingsButton').click()`);await wait(800);
+            check(caishengSettingsWindow&&!caishengSettingsWindow.isDestroyed()&&(await state(ids[0])).visible,`Settings button hid Signal account`);
+            caishengSettingsWindow.close();states.push({stage:`settings-keeps-account-visible`});
             const selected=await state(ids[0]);
             const original=Z.getBounds();Z.setBounds({...original,x:original.x+35,y:original.y+25});await wait(1200);
             const moved=await state(ids[0]);check(Math.abs(moved.bounds.x-selected.bounds.x-35)<=2&&Math.abs(moved.bounds.y-selected.bounds.y-25)<=2,`Account did not follow parent movement`);states.push({stage:`moved`,bounds:moved.bounds});
             const overlay=new p.BrowserWindow({show:false,width:350,height:250,parent:Z});
-            try {haituoRaiseOverlayWindow(overlay);await wait(1000);check((await Promise.all(ids.map(state))).every(x=>!x.visible),`Account covered overlay`)} finally{overlay.destroy()}
+            try {haituoRaiseOverlayWindow(overlay);await wait(1000);check((await state(ids[0])).visible&&overlay.isAlwaysOnTop(),`Native overlay hid account`)} finally{overlay.destroy()}
             await wait(1000);check((await state(ids[0])).visible,`Account did not return after overlay`);
             deadline=Date.now()+90000;let page;
             do{page=(await state(ids[0])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);

@@ -69,6 +69,7 @@ async function haituoTestSettingsSync() {
         await mediaWin.webContents.executeJavaScript(`document.getElementById('fixture-viewer').remove()`);
         for(const hidden of [true,false,true]){
             haituoApplyTranslationConfig({...$p(),hideTranslationBox:hidden});await delay(1500);
+            check($p().hideTranslationBox===hidden,'Read migration resets saved hide preference');
             const state=await mediaWin.webContents.executeJavaScript(`({hidden:!!document.getElementById('haituo-wa-translator-toggle'),expanded:!!document.querySelector('#haituo-whatsapp-translator textarea')})`);
             check(hidden?state.hidden&&!state.expanded:!state.hidden&&state.expanded,'Global hide translation setting did not update guest');
             stages.push({source:'hide-translation-toggle',hidden,state});

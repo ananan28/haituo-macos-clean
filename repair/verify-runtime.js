@@ -51,9 +51,12 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         check(caishengSettingsWindow,`Native settings window closed while loading`);
         const settingsLayout=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const scroll=document.querySelector('.scroll'),footer=document.querySelector('.footer').getBoundingClientRect(),rect=scroll.getBoundingClientRect();return{scrollHeight:scroll.scrollHeight,clientHeight:scroll.clientHeight,overflow:getComputedStyle(scroll).overflowY,footerBottom:footer.bottom,viewport:innerHeight,x:Math.round(rect.x+25),y:Math.round(rect.y+90)}})()`);
         check(settingsLayout.scrollHeight>settingsLayout.clientHeight&&settingsLayout.footerBottom<=settingsLayout.viewport+1,`Settings content/footer are clipped`);
-        await caishengSettingsWindow.webContents.executeJavaScript(`document.querySelector('.scroll').scrollTop=120`);
-        caishengSettingsWindow.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaY:-300,wheelTicksY:-3,canScroll:true});await wait(400);
+        caishengSettingsWindow.show();caishengSettingsWindow.focus();caishengSettingsWindow.webContents.focus();await wait(300);
+        await caishengSettingsWindow.webContents.executeJavaScript(`window.haituoWheelSeen=[];document.addEventListener('wheel',event=>window.haituoWheelSeen.push({deltaY:event.deltaY,target:event.target.tagName,prevented:event.defaultPrevented}),true);document.querySelector('.scroll').scrollTop=120`);
+        caishengSettingsWindow.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});
+        caishengSettingsWindow.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaX:0,deltaY:-300,wheelTicksX:0,wheelTicksY:-3,canScroll:true,hasPreciseScrollingDeltas:true});await wait(400);
         const scrollTop=await caishengSettingsWindow.webContents.executeJavaScript(`document.querySelector('.scroll').scrollTop`);
+        const wheelSeen=await caishengSettingsWindow.webContents.executeJavaScript(`window.haituoWheelSeen`);states.push({stage:`wheel-input`,scrollTop,settingsLayout,wheelSeen,focused:caishengSettingsWindow.isFocused()});
         check(Math.abs(scrollTop-120)>1,`Actual mouse wheel did not scroll settings`);
         const bottomVisible=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const scroll=document.querySelector('.scroll');scroll.scrollTop=scroll.scrollHeight;const last=document.getElementById('resetColors').getBoundingClientRect(),footer=document.querySelector('.footer').getBoundingClientRect();return last.top>=scroll.getBoundingClientRect().top&&last.bottom<=footer.top+1})()`);check(bottomVisible,`Last settings fields remain inaccessible`);
         const providers=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{

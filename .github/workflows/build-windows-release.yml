@@ -1,0 +1,69 @@
+name: Build repaired Windows 1.1.22
+on:
+  workflow_dispatch:
+  push:
+    branches: [release/windows-1.1.22]
+    paths: [windows/**, .github/workflows/build-windows-release.yml]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore and prepare repaired release
+        run: python windows/prepare.py
+      - name: Install fixed packaging tools
+        shell: bash
+        run: |
+          mkdir -p windows/tools
+          echo '{"private":true}' > windows/tools/package.json
+          npm install --prefix windows/tools --ignore-scripts --no-audit --no-fund --save-exact electron-builder@26.0.12 tar@7.5.22
+          mkdir -p macos/staging/app/node_modules/@signalapp/ringrtc/node_modules
+          cp -R windows/tools/node_modules/tar macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/
+          for module in '@isaacs' chownr minipass minizlib yallist; do
+            if [ -d "windows/tools/node_modules/$module" ]; then cp -R "windows/tools/node_modules/$module" macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/; fi
+          done
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          node --check macos/staging/app/bundles/main.js
+          node --check macos/staging/app/bundles/preload/main.js
+          node --check macos/staging/app/js/caisheng-webview-preload.js
+      - name: Build NSIS installation package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: node windows/tools/node_modules/electron-builder/cli.js --config windows/builder.json --win --x64
+      - name: Verify packaged native dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = Resolve-Path 'windows/out/win-unpacked'
+          $test = Join-Path $env:RUNNER_TEMP 'native-probe.cjs'
+          @'
+          const {createRequire}=require('module');
+          const path=require('path');
+          const load=createRequire(path.join(process.env.HAITUO_PACKED_APP,'resources','app.asar','package.json'));
+          for(const name of ['@signalapp/sqlcipher','@signalapp/libsignal-client','@signalapp/ringrtc','@indutny/simple-windows-notifications']){
+            load(name); console.log('Native load OK:',name);
+          }
+          '@ | Set-Content $test -Encoding utf8
+          $env:HAITUO_PACKED_APP = $app.Path
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & (Join-Path $app '海拓.exe') $test
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged native dependency load failed' }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Haituo-1.1.22-Windows-x64-Setup
+          path: windows/out/*Setup.exe
+          if-no-files-found: error
+          retention-days: 14

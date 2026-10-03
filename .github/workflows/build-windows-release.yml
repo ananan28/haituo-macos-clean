@@ -1,8 +1,8 @@
-name: Build Windows 1.1.23 with Signal network verification
+name: Build Windows 1.1.24 and verify Signal startup recovery
 on:
   workflow_dispatch:
   push:
-    branches: [release/windows-1.1.23]
+    branches: [release/windows-1.1.24]
     paths: [windows/**, .github/workflows/build-windows-release.yml]
 permissions:
   contents: read
@@ -33,6 +33,33 @@ jobs:
           for module in '@isaacs' chownr minipass minizlib yallist; do
             if [ -d "windows/tools/node_modules/$module" ]; then cp -R "windows/tools/node_modules/$module" macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/; fi
           done
+      - name: Add isolated runtime verification hook
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('macos/staging/app/bundles/main.js')
+          p.write_text(p.read_text(encoding='utf-8')+'\n'+Path('windows/runtime-test-hook.js').read_text(encoding='utf-8'),encoding='utf-8')
+          PY
+      - name: Package unchanged baseline for regression reproduction
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: node windows/tools/node_modules/electron-builder/cli.js --config windows/builder.json --win --x64 --dir --publish never
+      - name: Reproduce startup freeze after refresh
+        shell: pwsh
+        run: |
+          $env:HAITUO_WINDOWS_RUNTIME = '1'
+          $env:HAITUO_WINDOWS_BASELINE = '1'
+          $env:HAITUO_WINDOWS_REPORT = Join-Path $PWD 'windows/baseline-startup-report.json'
+          $p = Start-Process -FilePath 'windows/out/win-unpacked/海拓.exe' -PassThru
+          if (-not $p.WaitForExit(120000)) { Stop-Process -Id $p.Id -Force; throw 'Baseline runtime timeout' }
+          if ($p.ExitCode -ne 0) { throw "Baseline probe failed: $($p.ExitCode)" }
+          Remove-Item Env:HAITUO_WINDOWS_BASELINE
+          Remove-Item Env:HAITUO_WINDOWS_RUNTIME
+          Start-Sleep -Seconds 2
+          Remove-Item 'windows/out/win-unpacked' -Recurse -Force
+      - name: Apply startup visibility repair
+        run: python windows/patch-startup.py
       - name: Validate JavaScript
         shell: bash
         run: |
@@ -86,10 +113,26 @@ jobs:
           path: windows/network-report.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Verify actual Signal startup, refresh and multiple accounts
+        shell: pwsh
+        run: |
+          $env:HAITUO_WINDOWS_RUNTIME = '1'
+          $env:HAITUO_WINDOWS_REPORT = Join-Path $PWD 'windows/fixed-startup-report.json'
+          $p = Start-Process -FilePath 'windows/out/win-unpacked/海拓.exe' -PassThru
+          if (-not $p.WaitForExit(240000)) { Stop-Process -Id $p.Id -Force; throw 'Fixed runtime timeout' }
+          if ($p.ExitCode -ne 0) { throw "Signal startup regression failed: $($p.ExitCode)" }
+          Remove-Item Env:HAITUO_WINDOWS_RUNTIME
+      - name: Upload startup regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-startup-regression-reports
+          path: windows/*startup-report.json
+          retention-days: 14
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Haituo-1.1.23-Windows-x64-Setup
+          name: Haituo-1.1.24-Windows-x64-Setup
           path: windows/out/*Setup.exe
           if-no-files-found: error
           retention-days: 14

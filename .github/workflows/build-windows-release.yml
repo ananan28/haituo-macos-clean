@@ -42,7 +42,7 @@ jobs:
       - name: Build NSIS installation package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: node windows/tools/node_modules/electron-builder/cli.js --config windows/builder.json --win --x64
+        run: node windows/tools/node_modules/electron-builder/cli.js --config windows/builder.json --win --x64 --publish never
       - name: Verify packaged native dependencies
         shell: pwsh
         run: |

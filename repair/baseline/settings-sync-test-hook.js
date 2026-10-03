@@ -108,7 +108,7 @@ async function haituoTestSettingsSync() {
                 translateMap.set('caisheng:translate',async()=>({text:'语音翻译 fixture'}));
                 globalThis.fetch=async(url,options)=>{mutedDuringRequest=mediaWin.webContents.isAudioMuted();return new Response(JSON.stringify({text:'silent voice fixture'}),{status:200})};
                 mediaWin.webContents.setAudioMuted(false);
-                await mediaWin.webContents.executeJavaScript(`(()=>{const message=document.createElement('div');message.dataset.id='voice-fixture';message.innerHTML='<div data-testid="msg-container"><audio controls src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="></audio></div>';document.getElementById('main').append(message)})()`);
+                await mediaWin.webContents.executeJavaScript(`(()=>{const message=document.createElement('div');message.dataset.id='voice-fixture';message.style.cssText='margin-top:120px;height:120px';message.innerHTML='<div data-testid="msg-container"><audio controls src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="></audio></div>';document.getElementById('main').append(message)})()`);
                 await delay(2200);
                 check(await mediaWin.webContents.executeJavaScript(`(()=>{const button=document.querySelector('.haituo-voice-transcribe');if(!button)return false;button.click();return true})()`),'Actual transcription button missing');
                 await delay(1500);

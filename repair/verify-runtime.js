@@ -11,6 +11,9 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
     });
     else p.app.whenReady().then(async () => {
         const output = process.env.HAITUO_VERIFY_RESULT, ids = [], states=[];
+        const rendererErrors=[];
+        const attachConsole=()=>Z?.webContents.on('console-message',(_event,level,message)=>{if(level>=2){rendererErrors.push(message);console.error('Runtime renderer:',message)}});
+        p.app.once('browser-window-created',attachConsole);if(Z)attachConsole();
         const check=(value,message)=>{if(!value)throw Error(message)};
         const state=id=>new Promise((resolve,reject)=>{
             const child=Yg.get(id),requestId=`verify-${Date.now()}-${id}`;
@@ -46,9 +49,9 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
             const guestSession=p.session.fromPartition('haituo-paint-fixture');
             await guestSession.protocol.handle('https',()=>new Response('<html><body style="background:#00ff00">WHATSAPP PAINT FIXTURE</body></html>',{headers:{'content-type':'text/html'}}));
-            await Z.webContents.executeJavaScript(`(()=>{const node=document.createElement('webview');node.id='paint-fixture';node.className='CaishengPlatformShell__webview';node.dataset.caishengWorkspace='whatsapp-paint-fixture';node.dataset.haituoActive='false';node.setAttribute('partition','haituo-paint-fixture');node.src='https://web.whatsapp.com/paint-fixture';node.style.visibility='visible';document.querySelector('.CaishengPlatformShell__content').append(node);window.paintViolations=[];const sample=()=>{const n=document.getElementById('paint-fixture');if(n&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0')window.paintViolations.push(performance.now());window.paintFrame=requestAnimationFrame(sample)};sample()})()`);
+            await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(()=>{const node=document.createElement('webview');node.id='paint-fixture';node.className='CaishengPlatformShell__webview';node.dataset.caishengWorkspace='whatsapp-paint-fixture';node.dataset.haituoActive='false';node.setAttribute('partition','haituo-paint-fixture');node.src='https://web.whatsapp.com/paint-fixture';node.style.visibility='visible';document.querySelector('.CaishengPlatformShell__content').append(node);window.paintViolations=[];const sample=()=>{const n=document.getElementById('paint-fixture');if(n&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0')window.paintViolations.push(performance.now());window.paintFrame=requestAnimationFrame(sample)};sample()})()`}]);
             await wait(1000);
-            check(await Z.webContents.executeJavaScript(`(()=>{const v=document.getElementById('paint-fixture');return getComputedStyle(v).visibility==='hidden'&&!!v.getWebContentsId()})()`),'Inactive loaded WhatsApp guest can paint');
+            check(await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(()=>{const v=document.getElementById('paint-fixture');return getComputedStyle(v).visibility==='hidden'&&!!v.getWebContentsId()})()`}]),'Inactive loaded WhatsApp guest can paint');
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
             check(!caishengSettingsWindow,`Unexpected floating settings window`);
             const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,width:e.clientWidth,scrollWidth:e.scrollWidth,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
@@ -144,7 +147,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             do{page=(await state(ids[1])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);
             check(page?.installed&&!page.loading,`Refreshed Signal stayed on loading screen`);states.push({stage:`refreshed-signal-ready`,page});
             (0,m.writeFileSync)(output,JSON.stringify({ok:true,states},null,2));
-        } catch(error) {(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),states},null,2))}
+        } catch(error) {(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),states,rendererErrors},null,2))}
         finally {for(const id of ids)caishengTerminateSignalChild(Yg.get(id));p.app.exit(0)}
     });
 }

@@ -1,8 +1,8 @@
-name: Build repaired Windows 1.1.22
+name: Build Windows 1.1.23 with Signal network verification
 on:
   workflow_dispatch:
   push:
-    branches: [release/windows-1.1.22]
+    branches: [release/windows-1.1.23]
     paths: [windows/**, .github/workflows/build-windows-release.yml]
 permissions:
   contents: read
@@ -64,10 +64,32 @@ jobs:
           Get-Content (Join-Path $env:RUNNER_TEMP 'native-probe.err')
           if ($probe.ExitCode -ne 0) { throw "Packaged native dependency load failed: $($probe.ExitCode)" }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
+      - name: Verify actual Signal connections and provisioning
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = Resolve-Path 'windows/out/win-unpacked'
+          $env:HAITUO_PACKED_APP = $app.Path
+          $env:HAITUO_NETWORK_REPORT = Join-Path $PWD 'windows/network-report.json'
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $script = (Resolve-Path 'windows/network-probe.cjs').Path
+          $probe = Start-Process -FilePath (Join-Path $app '海拓.exe') -ArgumentList $script -Wait -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'network.log') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'network.err')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'network.log')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'network.err')
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          if ($probe.ExitCode -ne 0) { throw 'Actual Signal connection verification failed' }
+      - name: Upload network diagnostic result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Signal-network-report
+          path: windows/network-report.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Haituo-1.1.22-Windows-x64-Setup
+          name: Haituo-1.1.23-Windows-x64-Setup
           path: windows/out/*Setup.exe
           if-no-files-found: error
           retention-days: 14

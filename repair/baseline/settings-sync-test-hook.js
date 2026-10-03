@@ -49,14 +49,6 @@ async function haituoTestSettingsSync() {
             for(const value of guest){check(value.text.font===expected.chatFontSize+'px'&&value.otherText.font===expected.chatFontSize+'px','WhatsApp size did not update');check(value.text.color===rgb(expected.chatTextColor)&&value.otherText.color===rgb(expected.chatTextColor),'WhatsApp text color did not update');check(value.incoming.bg===rgb(expected.incomingBubbleColor)&&value.outgoing.bg===rgb(expected.outgoingBubbleColor),'WhatsApp bubbles did not update');check(value.theme===expected.nativeTheme,'WhatsApp native appearance did not update')}
             stages.push({source:test.source,children,guest});
         }
-        haituoApplyTranslationConfig({...$p(),chatTextColor:'',outgoingBubbleColor:'',incomingBubbleColor:''});
-        await haituoShowSettingsWindow();
-        let settingsDeadline=Date.now()+10000;
-        while(caishengSettingsWindow.webContents.isLoading()&&Date.now()<settingsDeadline)await delay(100);
-        const nativeColor=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const before=collect().outgoingBubbleColor,chosen=form.outgoingBubbleColor.value;form.outgoingBubbleColor.dispatchEvent(new Event('input',{bubbles:true}));return{before,chosen,after:collect().outgoingBubbleColor}})()`);
-        check(nativeColor.before===''&&nativeColor.after===nativeColor.chosen,'Native settings drops an explicitly chosen default bubble color');
-        await delay(300);check($p().outgoingBubbleColor===nativeColor.chosen,'Native color preview did not save');
-        caishengSettingsWindow.close();stages.push({source:'native-color-picker',nativeColor});
         const mediaWin=views[0];
         haituoApplyTranslationConfig({...$p(),hideTranslationBox:false});
         const mediaHtml=`<html><body><style>body{margin:0}#main{position:absolute;left:200px;top:0;width:700px;height:700px}footer{position:absolute;left:0;bottom:0;width:420px;height:70px}footer [contenteditable]{width:390px;height:40px}#media-sidebar{position:absolute;left:620px;top:0;width:280px;height:700px}</style><div id="app"><div id="main"><footer><div contenteditable="true" role="textbox">Hello</div></footer></div><aside id="media-sidebar">影音内容</aside></div></body></html>`;

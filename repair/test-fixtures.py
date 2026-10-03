@@ -10,6 +10,7 @@ for name in ['message','settings']:
    code=proc.wait(timeout=240)
    data=json.loads(result.read_text()) if result.exists() else {'ok':False,'error':'No report'}
    print(json.dumps(data,ensure_ascii=False))
+   if code!=0 or not data['ok']: print((out/f'{name}.log').read_text(errors='replace')[-8000:])
    assert code==0 and data['ok'],f'{name} fixture failed'
   finally:
    if proc.poll() is None:

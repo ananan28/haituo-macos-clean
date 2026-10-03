@@ -21,6 +21,10 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             let deadline=Date.now()+90000,mainPage;
             do {await wait(500);if(Z&&!Z.isDestroyed())mainPage=await Z.webContents.executeJavaScript(snapshot)} while((!mainPage?.body||mainPage.loading)&&Date.now()<deadline);
             check(mainPage?.body&&!mainPage.loading,`Main window stayed on loading screen`);states.push({stage:`main-ready`,page:mainPage});
+            check(await Z.webContents.executeJavaScript(`(()=>{const tab=document.querySelector('button[data-caisheng-tab-workspace="signal-main"]');if(!tab)return false;tab.click();return true})()`),`Main Signal tab missing`);
+            deadline=Date.now()+90000;
+            do{await wait(500);mainPage=await Z.webContents.executeJavaScript(snapshot)}while((!mainPage.installed||mainPage.loading)&&Date.now()<deadline);
+            check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
             const launch=p.ipcMain._invokeHandlers.get(`caisheng:launch-signal-profile`),sync=p.ipcMain._invokeHandlers.get(`caisheng:sync-signal-profile`);
             check(typeof launch===`function`&&typeof sync===`function`,`Missing account handlers`);
             for(const id of ids){await launch({},id);deadline=Date.now()+90000;while(!Xg.has(id)&&Date.now()<deadline)await wait(500);check(Xg.has(id),`Account did not initialize: ${id}`)}
@@ -38,6 +42,15 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             deadline=Date.now()+90000;let page;
             do{page=(await state(ids[0])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);
             check(page?.installed&&!page.loading,`Signal stayed on loading screen`);states.push({stage:`signal-ready`,page});
+            sync({}, {id:ids[1],x:100,y:80,width:640,height:440,keepVisible:true});deadline=Date.now()+90000;
+            do{page=(await state(ids[1])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);
+            check(page?.installed&&!page.loading,`Second Signal stayed on loading screen`);states.push({stage:`second-signal-ready`,page});
+            const oldPid=Yg.get(ids[1]).pid,refresh=p.ipcMain._invokeHandlers.get(`caisheng:refresh-signal-profile`);
+            const refreshed=await refresh({},ids[1]);check(refreshed?.ok,`Refresh failed`);deadline=Date.now()+90000;
+            while(!Xg.has(ids[1])&&Date.now()<deadline)await wait(500);
+            check(Xg.has(ids[1])&&Yg.get(ids[1]).pid!==oldPid,`Refresh did not restart account backend`);
+            do{page=(await state(ids[1])).page;if(page?.installed&&!page.loading)break;await wait(1000)}while(Date.now()<deadline);
+            check(page?.installed&&!page.loading,`Refreshed Signal stayed on loading screen`);states.push({stage:`refreshed-signal-ready`,page});
             (0,m.writeFileSync)(output,JSON.stringify({ok:true,states},null,2));
         } catch(error) {(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),states},null,2))}
         finally {for(const id of ids)caishengTerminateSignalChild(Yg.get(id));p.app.exit(0)}

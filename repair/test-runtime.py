@@ -19,7 +19,10 @@ with tempfile.TemporaryDirectory(prefix='haituo-verify-') as profile:
             print(json.dumps(report, ensure_ascii=False))
             if not report['ok']: raise RuntimeError(report['error'])
         finally:
-            try: os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError: pass
             try: process.wait(timeout=10)
-            except subprocess.TimeoutExpired: os.killpg(process.pid, signal.SIGKILL)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                try: process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=10)

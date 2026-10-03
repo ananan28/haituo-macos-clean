@@ -29,10 +29,15 @@ new='''        const refresh = (async () => {
 s=replace(s,old,new)
 # Retain user-selected solid colors when retiring wallpaper settings.
 s=replace(s,'            e.chatTextColor = ``; e.outgoingBubbleColor = ``; e.incomingBubbleColor = ``;', '            for (const key of [`chatTextColor`,`outgoingBubbleColor`,`incomingBubbleColor`]) if (!/^#[0-9a-f]{6}$/iu.test(e[key] || ``)) e[key] = ``;')
-s=replace(s,'.catch(() => caishengSettingsWindow?.close());', '.catch(error => {console.error(`Haituo native settings load failed`,error);caishengSettingsWindow?.close()});')
+s=replace(s,'.catch(() => caishengSettingsWindow?.close());', '.catch(error => {X.warn(`Haituo native settings load failed: ${error?.code || `unknown`}`);caishengSettingsWindow?.close()});')
 s=replace(s,"const initialColors=Object.fromEntries", "const haituoEditedColors=new Set();form.addEventListener('input',event=>{if(['chatTextColor','outgoingBubbleColor','incomingBubbleColor'].includes(event.target.name))haituoEditedColors.add(event.target.name)},true);\nconst initialColors=Object.fromEntries")
 s=replace(s,"if(form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';", "if(!haituoEditedColors.has(key)&&form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';")
 s=replace(s,"document.getElementById('resetColors').onclick=()=>{for", "document.getElementById('resetColors').onclick=()=>{haituoEditedColors.clear();for")
+s=replace(s,'webPreferences: { nodeIntegration: !1, contextIsolation: !0, sandbox: !0 }', 'webPreferences: { partition: `haituo-native-interface`, nodeIntegration: !1, contextIsolation: !0, sandbox: !0 }')
+a=s.index('function haituoPromptAccountLabel(');b=s.index('async function haituoShowSettingsWindow()',a)
+section=s[a:b]
+section=replace(section,'            webPreferences: {\n                nodeIntegration: !1,','            webPreferences: {\n                partition: `haituo-native-interface`,\n                nodeIntegration: !1,')
+s=s[:a]+section+s[b:]
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=replace(s,'                e.chatTextColor = ``; e.outgoingBubbleColor = ``; e.incomingBubbleColor = ``;', '                for (const key of [`chatTextColor`,`outgoingBubbleColor`,`incomingBubbleColor`]) if (!/^#[0-9a-f]{6}$/iu.test(e[key] || ``)) e[key] = ``;')

@@ -100,7 +100,7 @@ async function haituoTestSettingsSync() {
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'fixture-dedicated',openaiVoiceEndpoint:'https://voice.example.test/v1/audio/transcriptions',openaiVoiceModel:'whisper-1',apiKey:'different-text-key',endpoint:'https://text.example.test/v1',model:'text-only-model'});
             const count=audioCalls.length;
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),dedicatedKey:options.headers.Authorization==='Bearer fixture-dedicated'});return new Response(JSON.stringify({text:'dedicated voice fixture'}),{status:200})};
-            const dedicated=await audioHandler(audioEvent,audio);check(audioCalls.length===count+1&&audioCalls.at(-1).dedicatedKey&&audioCalls.at(-1).model==='whisper-1'&&audioCalls.at(-1).url==='https://voice.example.test/v1/audio/transcriptions','Voice request inherited text routing or model');
+            const dedicated=await audioHandler(audioEvent,audio);check(dedicated.provider==='openai-whisper-1'&&audioCalls.length===count+1&&audioCalls.at(-1).dedicatedKey&&audioCalls.at(-1).model==='whisper-1'&&audioCalls.at(-1).url==='https://voice.example.test/v1/audio/transcriptions','Voice request inherited text routing or model');
             const mute=p.ipcMain._invokeHandlers.get('caisheng:capture-voice-media'),ev={senderFrame:{url:'https://web.whatsapp.com/'},sender:mediaWin.webContents};
             for(const initiallyMuted of [false,true]){
                 mediaWin.webContents.setAudioMuted(initiallyMuted);

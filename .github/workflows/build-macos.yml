@@ -27,6 +27,20 @@ jobs:
           pathlib.Path('source.zip').write_bytes(data)
           with zipfile.ZipFile('source.zip') as z: z.extractall('.')
           PYCODE
+      - name: Prepare missing packaging dependencies
+        run: |
+          mkdir -p macos/packaging-deps
+          printf '{"private":true}\n' > macos/packaging-deps/package.json
+          npm install --prefix macos/packaging-deps --ignore-scripts --no-audit --no-fund --save-exact tar@7.5.22
+          python3 - <<'PYCODE'
+          import pathlib
+          p=pathlib.Path('macos/build-mac.command')
+          text=p.read_text()
+          marker='python3 macos/prepare-native.py\n'
+          assert text.count(marker)==1, 'Unexpected baseline build script'
+          text=text.replace(marker, marker+'mkdir -p macos/staging/app/node_modules/@signalapp/ringrtc/node_modules\ncp -R macos/packaging-deps/node_modules/. macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/\n')
+          p.write_text(text)
+          PYCODE
       - name: Build original DMG
         run: bash macos/build-mac.command
       - uses: actions/upload-artifact@v4

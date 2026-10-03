@@ -45,6 +45,8 @@ jobs:
           sign='codesign --force --deep --sign - --entitlements macos/entitlements.plist "$APP"'
           assert text.count(sign)==1
           text=text.replace(sign,'python3 repair/prepare-account-helper.py "$APP"\n'+sign)
+          create=next(line for line in text.splitlines() if line.startswith('hdiutil create '))
+          text=text.replace(create,'for attempt in 1 2 3; do\n  if '+create+'; then break; fi\n  if [ \"$attempt\" = 3 ]; then exit 1; fi\n  sleep 2\ndone')
           p.write_text(text)
           PYCODE
       - name: Generate native macOS application icon

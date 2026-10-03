@@ -49,7 +49,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
             const guestSession=p.session.fromPartition('haituo-paint-fixture');
             await guestSession.protocol.handle('https',()=>new Response('<html><body style="background:#00ff00">WHATSAPP PAINT FIXTURE</body></html>',{headers:{'content-type':'text/html'}}));
-            await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(()=>{const node=document.createElement('webview');node.id='paint-fixture';node.className='CaishengPlatformShell__webview';node.dataset.caishengWorkspace='whatsapp-paint-fixture';node.dataset.haituoActive='false';node.setAttribute('partition','haituo-paint-fixture');node.src='https://web.whatsapp.com/paint-fixture';node.style.visibility='visible';document.querySelector('.CaishengPlatformShell__content').append(node);window.paintViolations=[];const sample=()=>{const n=document.getElementById('paint-fixture');if(n&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0')window.paintViolations.push(performance.now());window.paintFrame=requestAnimationFrame(sample)};sample()})()`}]);
+            await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(()=>{const node=document.createElement('webview');node.id='paint-fixture';node.className='CaishengPlatformShell__webview';node.dataset.caishengWorkspace='whatsapp-paint-fixture';node.dataset.haituoActive='false';node.setAttribute('partition','haituo-paint-fixture');node.src='https://web.whatsapp.com/paint-fixture';node.style.visibility='visible';document.querySelector('.CaishengPlatformShell__content').append(node);window.paintViolations=[];const sample=()=>{const n=document.getElementById('paint-fixture');if(n&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0'){window.paintViolations.push(performance.now());n.dataset.paintViolations=JSON.stringify(window.paintViolations)};window.paintFrame=requestAnimationFrame(sample)};sample()})()`}]);
             await wait(1000);
             check(await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(()=>{const v=document.getElementById('paint-fixture');return getComputedStyle(v).visibility==='hidden'&&!!v.getWebContentsId()})()`}]),'Inactive loaded WhatsApp guest can paint');
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
@@ -108,8 +108,8 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(chat.x+chat.width<=content.x+panelLeft+2,`Signal covers inline settings`);
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
             states.push({stage:`settings-keeps-account-visible`,chat,panelLeft});
-            check(await Z.webContents.executeJavaScript(`window.paintViolations.length===0`),'WhatsApp flashed while switching Signal/header/settings');
-            states.push({stage:'loaded-whatsapp-no-flash',violations:await Z.webContents.executeJavaScript(`window.paintViolations`)});
+            check(await Z.webContents.executeJavaScript(`!document.getElementById('paint-fixture')?.dataset.paintViolations`),'WhatsApp flashed while switching Signal/header/settings');
+            states.push({stage:'loaded-whatsapp-no-flash',violations:await Z.webContents.executeJavaScript(`JSON.parse(document.getElementById('paint-fixture')?.dataset.paintViolations||'[]')`)});
             const foreground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,[`--foreground-window`],{stdio:`ignore`});
             try{
                 for(let attempt=0;attempt<3;attempt++){

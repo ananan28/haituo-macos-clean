@@ -36,7 +36,7 @@ s=change(s,'                error.status=response.status;throw error;', '''     
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=change(s,'            voiceTranscriptionProvider: e.voiceTranscriptionProvider,','''            voiceTranscriptionProvider: e.voiceTranscriptionProvider,
-            openaiVoiceEndpoint:e.openaiVoiceEndpoint,openaiVoiceApiKey:e.openaiVoiceApiKey,openaiVoiceModel:e.openaiVoiceModel,''')
+            openaiVoiceEndpoint:e.openaiVoiceEndpoint??(e.voiceTranscriptionProvider===`openai`?e.compatibleEndpoint:undefined),openaiVoiceApiKey:e.openaiVoiceApiKey??(e.voiceTranscriptionProvider===`openai`?e.apiKey:undefined),openaiVoiceModel:e.openaiVoiceModel,''')
 s=change(s,'                className: `CaishengPlatformShell__content`,','''                className: `CaishengPlatformShell__content`,
                 "data-haituo-native-account":!haituoHome&&r.find(account=>account.id===o)?.platformId===`signal`?`true`:`false`,''')
 s=change(s,'                        "data-caisheng-workspace": e.id,','''                        "data-caisheng-workspace": e.id,

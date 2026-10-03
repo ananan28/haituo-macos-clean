@@ -32,9 +32,12 @@ s=s.replace('            errors.push(e instanceof Error ? e.message : String(e))
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=change(s,'                        if (window.SignalContext.OS.platform === `darwin`) {d(!1);l(!1);await window.SignalContext.caishengShowSettingsWindow();return}\n','')
-s=s.replace('当前版本 1.1.20','当前版本 1.1.21');p.write_text(s)
+s=s.replace('当前版本 1.1.20','当前版本 1.1.21').replace('海拓 1.1.7 即时颜色与静音复测版','海拓 1.1.21');p.write_text(s)
 p=root/'js/caisheng-webview-preload.js';s=p.read_text()
 s=change(s,'        localPanelPreference !== null && (settings.hideTranslationBox = localPanelPreference);','        localPanelPreference = null;\n        if(!!localHidden !== !!settings.hideTranslationBox){panel?.remove();panel=null;if(findComposer())showPanel(findComposer());}')
 s=change(s,'        localPanelPreference !== null && (settings.hideTranslationBox = localPanelPreference),','        localPanelPreference = null,')
 p.write_text(s)
 print('Applied 1.1.21: inline settings, normal window level, frameless accounts, canonical hide preference, authenticated audio routing')
+
+p=root/'stylesheets/manifest.css'
+p.write_text(p.read_text()+"\n.CaishengPlatformShell__settings{overflow-y:scroll;scrollbar-gutter:stable}.CaishengPlatformShell__settings::-webkit-scrollbar{width:12px}.CaishengPlatformShell__settings::-webkit-scrollbar-thumb{background:#888;border:3px solid transparent;border-radius:8px;background-clip:padding-box}.CaishengPlatformShell__settings::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}")

@@ -25,7 +25,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         const assertAbove=async(id,stage,overlay)=>{
             const account=await state(id),rootId=Number(Z.getMediaSourceId().split(`:`)[1]),childId=Number(account.windowId.split(`:`)[1]);
             const order=windowOrder(),rootIndex=order.findIndex(win=>win.id===rootId),childIndex=order.findIndex(win=>win.id===childId);
-            check(account.visible&&childIndex>=0&&rootIndex>=0&&childIndex<rootIndex,`Signal is behind main window at ${stage}: child ${childIndex}, root ${rootIndex}`);
+            check(account.visible&&childIndex>=0&&rootIndex>=0&&childIndex<rootIndex,`Signal is behind main window at ${stage}: child ${childIndex}, root ${rootIndex}, visible ${account.visible}, selection ${JSON.stringify(Zg)}`);
             if(overlay){const overlayIndex=order.findIndex(win=>win.id===Number(overlay.getMediaSourceId().split(`:`)[1]));check(overlayIndex>=0&&overlayIndex<childIndex,`Settings is covered by Signal`)}
             states.push({stage,rootIndex,childIndex,visible:account.visible});
         };
@@ -65,6 +65,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                 while(!(id=[...Yg.keys()].find(id=>!beforeIds.has(id)))&&Date.now()<deadline)await wait(250);
                 check(id,`Actual add-account UI did not launch Signal`);ids.push(id);
                 while(!Xg.has(id)&&Date.now()<deadline)await wait(500);check(Xg.has(id),`Account did not initialize: ${id}`);
+                await mouseClick(`button[data-caisheng-tab-workspace="${id}"]`);await wait(600);await assertAbove(id,`new-account-ready`);
             }
             const reordered=await Z.webContents.executeJavaScript(`(()=>{const a=document.querySelector('button[data-caisheng-tab-workspace="${ids[0]}"]'),b=document.querySelector('button[data-caisheng-tab-workspace="${ids[1]}"]'),data=new DataTransfer();a.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:data}));b.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:data}));b.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));return true})()`);
             await wait(500);

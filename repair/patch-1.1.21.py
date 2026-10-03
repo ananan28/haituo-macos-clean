@@ -11,6 +11,12 @@ s=change(s,'        let settled = !1, menu;','        let settled = !1, menu;\n 
 s=change(s,'            settled = !0, caishengMenuOpen = !1, resolve(typeof value == `string` ? value : null), setTimeout(t_, 80);','            if(menuOrderTimer)clearInterval(menuOrderTimer);\n            settled = !0, caishengMenuOpen = !1, resolve(typeof value == `string` ? value : null), setTimeout(t_, 80);')
 s=change(s,'Z.on(`focus`, () => {setImmediate(haituoMacOrderSelectedAccount);setTimeout(haituoMacOrderSelectedAccount,60)});','Z.on(`focus`, () => {setImmediate(haituoMacOrderSelectedAccount);for(const delay of [60,120,250])setTimeout(haituoMacOrderSelectedAccount,delay)});')
 s=change(s,'Z.setIgnoreMouseEvents(!1), Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();','Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();')
+s=change(s,'        e.visible && Qg?.visible && Z && (!Z.isVisible() || process.platform === `win32` && (!caishengNativeFollower || caishengNativeFollower.killed)) && n_();','''        if(Qg && typeof e.visible===`boolean`){
+            const changed=Qg.visible!==e.visible;
+            Qg={...Qg,visible:e.visible};
+            if(changed || e.visible && Z && !Z.isVisible())n_();
+        }''')
+s=change(s,'Qg = e, n_(), haituoBroadcastTranslationConfig','Qg = {...Qg,...e,bounds:e.bounds || Qg?.bounds}, n_(), haituoBroadcastTranslationConfig')
 s=change(s,'        visible: r,\n        chatTextColor:', '        visible: r,\n        parentSourceId: Z?.getMediaSourceId(),\n        chatTextColor:')
 s=change(s,'    Z.show();\n    Z.moveTop();\n    Z.focus();\n    Z.webContents.focus();','    Z.showInactive();\n    if(Qg.parentSourceId)try{Z.moveAbove(Qg.parentSourceId)}catch{}')
 s=change(s,'    $u !== `signal-main` && Object.assign(g, {\n        frame: !1,','    $u !== `signal-main` && Object.assign(g, {\n        titleBarStyle: `default`,\n        frame: !1,')

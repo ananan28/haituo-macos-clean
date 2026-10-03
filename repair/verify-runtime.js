@@ -5,7 +5,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         if (event?.type !== `haituo-verify-state` || !Z || Z.isDestroyed()) return;
         try {
             const page = await Z.webContents.executeJavaScript(snapshot);
-            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),page,dockVisible:p.app.dock?.isVisible(),execPath:process.execPath,windowId:Z.getMediaSourceId()});
+            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),accountState:Qg,page,dockVisible:p.app.dock?.isVisible(),execPath:process.execPath,windowId:Z.getMediaSourceId()});
         } catch (error) { process.send?.({type:`haituo-verify-result`,requestId:event.requestId,error:String(error)}); }
     });
     else p.app.whenReady().then(async () => {
@@ -25,7 +25,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         const assertAbove=async(id,stage,overlay)=>{
             const account=await state(id),rootId=Number(Z.getMediaSourceId().split(`:`)[1]),childId=Number(account.windowId.split(`:`)[1]);
             const order=windowOrder(),rootIndex=order.findIndex(win=>win.id===rootId),childIndex=order.findIndex(win=>win.id===childId);
-            check(account.visible&&childIndex>=0&&rootIndex>=0&&childIndex<rootIndex,`Signal is behind main window at ${stage}: child ${childIndex}, root ${rootIndex}, visible ${account.visible}, selection ${JSON.stringify(Zg)}`);
+            check(account.visible&&childIndex>=0&&rootIndex>=0&&childIndex<rootIndex,`Signal is behind main window at ${stage}: child ${childIndex}, root ${rootIndex}, visible ${account.visible}, selection ${JSON.stringify(Zg)}, rootVisible ${Z.isVisible()}, rootMinimized ${Z.isMinimized()}, childConfig ${JSON.stringify(account.accountState)}`);
             if(overlay){const overlayIndex=order.findIndex(win=>win.id===Number(overlay.getMediaSourceId().split(`:`)[1]));check(overlayIndex>=0&&overlayIndex<childIndex,`Settings is covered by Signal`)}
             states.push({stage,rootIndex,childIndex,visible:account.visible});
         };

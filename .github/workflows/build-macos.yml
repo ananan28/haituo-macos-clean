@@ -1,8 +1,8 @@
-name: Build exact original macOS baseline
+name: Build and verify macOS repairs
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [fix/macos-startup-windows]
 permissions:
   contents: read
 jobs:
@@ -39,13 +39,41 @@ jobs:
           marker='python3 macos/prepare-native.py\n'
           assert text.count(marker)==1, 'Unexpected baseline build script'
           text=text.replace(marker, marker+'mkdir -p macos/staging/app/node_modules/@signalapp/ringrtc/node_modules\ncp -R macos/packaging-deps/node_modules/. macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/\n')
+          text=text.replace(marker, marker+'python3 repair/prepare-repairs.py\n',1)
+          text=text.replace('--app-version=1.1.8 --build-version=1.1.8','--app-version=1.1.22 --build-version=1.1.22 --icon=macos/haituo.icns')
+          text=text.replace('海拓-1.1.8','海拓-1.1.22')
+          sign='codesign --force --deep --sign - --entitlements macos/entitlements.plist "$APP"'
+          assert text.count(sign)==1
+          text=text.replace(sign,'python3 repair/prepare-account-helper.py "$APP"\n'+sign)
+          create=next(line for line in text.splitlines() if line.startswith('hdiutil create '))
+          text=text.replace(create,'for attempt in 1 2 3; do\n  if '+create+'; then break; fi\n  if [ \"$attempt\" = 3 ]; then exit 1; fi\n  sleep 2\ndone')
           p.write_text(text)
           PYCODE
-      - name: Build original DMG
+      - name: Generate native macOS application icon
+        run: |
+          mkdir -p macos/haituo.iconset
+          for size in 16 32 128 256 512; do
+            sips -z "$size" "$size" work/app/build/icons/png/512x512.png --out "macos/haituo.iconset/icon_${size}x${size}.png" >/dev/null
+            double=$((size * 2))
+            sips -z "$double" "$double" work/app/build/icons/png/512x512.png --out "macos/haituo.iconset/icon_${size}x${size}@2x.png" >/dev/null
+          done
+          iconutil -c icns macos/haituo.iconset -o macos/haituo.icns
+      - name: Build repaired DMG
+        id: package
         run: bash macos/build-mac.command
+      - name: Verify native startup and account windows
+        run: python3 repair/test-runtime.py
+      - name: Verify message translation, colors, and media layouts
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        run: python3 repair/test-fixtures.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: haituo-original-baseline-ARM64
+          name: haituo-repaired-1.1.22-ARM64
           retention-days: 7
-          path: macos/out/*.dmg
+          path: |
+            macos/out/*.dmg
+            macos/verification/*.json
+            macos/verification/*.log
+            macos/verification/*.png
           if-no-files-found: error

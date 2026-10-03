@@ -2,6 +2,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
     const snapshot = `(() => {const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden';return {ready:document.readyState,loading:[...document.querySelectorAll('.app-loading-screen')].some(visible),installed:[...document.querySelectorAll('[class*="InstallScreen"],.inbox')].some(visible),shell:!!document.querySelector('.CaishengPlatformShell'),body:!!document.body&&document.body.children.length>0}})()`;
     if ($u !== `signal-main`) process.on(`message`, async event => {
+        if(event?.type===`haituo-verify-focus`){p.app.focus({steal:true});Z.show();Z.focus();return}
         if (event?.type !== `haituo-verify-state` || !Z || Z.isDestroyed()) return;
         try {
             const page = await Z.webContents.executeJavaScript(snapshot);
@@ -43,6 +44,11 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             deadline=Date.now()+90000;
             do{await wait(500);mainPage=await Z.webContents.executeJavaScript(snapshot)}while((!mainPage.installed||mainPage.loading)&&Date.now()<deadline);
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
+            const guestSession=p.session.fromPartition('haituo-paint-fixture');
+            await guestSession.protocol.handle('https',()=>new Response('<html><body style="background:#00ff00">WHATSAPP PAINT FIXTURE</body></html>',{headers:{'content-type':'text/html'}}));
+            await Z.webContents.executeJavaScript(`(()=>{const node=document.createElement('webview');node.id='paint-fixture';node.className='CaishengPlatformShell__webview';node.dataset.caishengWorkspace='whatsapp-paint-fixture';node.dataset.haituoActive='false';node.setAttribute('partition','haituo-paint-fixture');node.src='https://web.whatsapp.com/paint-fixture';node.style.visibility='visible';document.querySelector('.CaishengPlatformShell__content').append(node);window.paintViolations=[];const sample=()=>{const n=document.getElementById('paint-fixture');if(n&&getComputedStyle(n).visibility!=='hidden'&&getComputedStyle(n).opacity!=='0')window.paintViolations.push(performance.now());window.paintFrame=requestAnimationFrame(sample)};sample()})()`);
+            await wait(1000);
+            check(await Z.webContents.executeJavaScript(`(()=>{const v=document.getElementById('paint-fixture');return getComputedStyle(v).visibility==='hidden'&&!!v.getWebContentsId()})()`),'Inactive loaded WhatsApp guest can paint');
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
             check(!caishengSettingsWindow,`Unexpected floating settings window`);
             const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,width:e.clientWidth,scrollWidth:e.scrollWidth,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
@@ -99,6 +105,8 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(chat.x+chat.width<=content.x+panelLeft+2,`Signal covers inline settings`);
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
             states.push({stage:`settings-keeps-account-visible`,chat,panelLeft});
+            check(await Z.webContents.executeJavaScript(`window.paintViolations.length===0`),'WhatsApp flashed while switching Signal/header/settings');
+            states.push({stage:'loaded-whatsapp-no-flash',violations:await Z.webContents.executeJavaScript(`window.paintViolations`)});
             const foreground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,[`--foreground-window`],{stdio:`ignore`});
             try{
                 for(let attempt=0;attempt<3;attempt++){
@@ -107,6 +115,14 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                     check(externalIndex>=0&&externalIndex<rootIndex&&externalIndex<childIndex,`Haituo covers external foreground app`);
                     states.push({stage:`external-app-foreground`,externalIndex,rootIndex,childIndex});
                 }
+                caishengSendChild(Yg.get(ids[0]),{type:'haituo-verify-focus'});await wait(700);
+                let stacking=windowOrder(),externalIndex=stacking.findIndex(w=>Number(w.pid)===foreground.pid),rootIndex=stacking.findIndex(w=>w.id===Number(Z.getMediaSourceId().split(':')[1]));
+                const account=await state(ids[0]),childIndex=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));
+                check(childIndex>=0&&childIndex<rootIndex&&rootIndex<externalIndex,'Activating Signal leaves parent behind external app');
+                states.push({stage:'child-activation-window-group',childIndex,rootIndex,externalIndex});
+                (0,c.spawnSync)(process.env.HAITUO_WINDOW_ORDER_TOOL,['--activate',String(foreground.pid)],{encoding:'utf8'});
+                for(let sample=0;sample<5;sample++){await wait(150);stacking=windowOrder();externalIndex=stacking.findIndex(w=>Number(w.pid)===foreground.pid);rootIndex=stacking.findIndex(w=>w.id===Number(Z.getMediaSourceId().split(':')[1]));const ci=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));check(externalIndex>=0&&externalIndex<ci&&externalIndex<rootIndex,'Delayed account ordering covers another app');}
+                states.push({stage:'external-reactivation-after-child',ok:true});
             }finally{foreground.kill()}
             Z.focus();Z.moveTop();await wait(500);
             const selected=await state(ids[0]);

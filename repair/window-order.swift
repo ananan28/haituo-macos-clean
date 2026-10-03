@@ -1,6 +1,9 @@
 import Foundation
 import CoreGraphics
 import AppKit
+if let index=CommandLine.arguments.firstIndex(of:"--activate"),CommandLine.arguments.count>index+1,let pid=Int32(CommandLine.arguments[index+1]),let target=NSRunningApplication(processIdentifier:pid){
+    target.activate(options:[.activateAllWindows,.activateIgnoringOtherApps]);exit(0)
+}
 if CommandLine.arguments.contains("--foreground-window") {
     let app=NSApplication.shared
     app.setActivationPolicy(.regular)

@@ -91,7 +91,31 @@ async function haituoTestSettingsSync() {
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'groq',groqApiKey:'fixture-groq'});
             globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return new Response(JSON.stringify({text:'groq fixture transcription'}),{status:200})};
             const groq=await audioHandler(audioEvent,audio);check(groq.text==='groq fixture transcription'&&audioCalls.length===4,'Selected provider reused another provider cache');
-            stages.push({source:'audio-routing-fixture',audioCalls,rejected,transcribed,groq});
+            haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'fixture-dedicated',openaiVoiceEndpoint:'https://voice.example.test/v1/audio/transcriptions',openaiVoiceModel:'whisper-1',apiKey:'different-text-key',endpoint:'https://text.example.test/v1',model:'text-only-model'});
+            const count=audioCalls.length;
+            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),dedicatedKey:options.headers.Authorization==='Bearer fixture-dedicated'});return new Response(JSON.stringify({text:'dedicated voice fixture'}),{status:200})};
+            const dedicated=await audioHandler(audioEvent,audio);check(audioCalls.length===count+1&&audioCalls.at(-1).dedicatedKey&&audioCalls.at(-1).model==='whisper-1'&&audioCalls.at(-1).url==='https://voice.example.test/v1/audio/transcriptions','Voice request inherited text routing or model');
+            const mute=p.ipcMain._invokeHandlers.get('caisheng:capture-voice-media'),ev={senderFrame:{url:'https://web.whatsapp.com/'},sender:mediaWin.webContents};
+            for(const initiallyMuted of [false,true]){
+                mediaWin.webContents.setAudioMuted(initiallyMuted);
+                await mute(ev,{muteOnly:true});await mute(ev,{muteOnly:true});check(mediaWin.webContents.isAudioMuted(),'Nested transcription mute failed');
+                await mute(ev,{muteOnly:false});check(mediaWin.webContents.isAudioMuted(),'Concurrent transcription restored audio early');
+                await mute(ev,{muteOnly:false});check(mediaWin.webContents.isAudioMuted()===initiallyMuted,'Transcription did not preserve prior mute');
+            }
+            const translateMap=p.ipcMain._invokeHandlers,translateOriginal=translateMap.get('caisheng:translate');
+            let mutedDuringRequest=false;
+            try{
+                translateMap.set('caisheng:translate',async()=>({text:'语音翻译 fixture'}));
+                globalThis.fetch=async(url,options)=>{mutedDuringRequest=mediaWin.webContents.isAudioMuted();return new Response(JSON.stringify({text:'silent voice fixture'}),{status:200})};
+                mediaWin.webContents.setAudioMuted(false);
+                await mediaWin.webContents.executeJavaScript(`(()=>{const message=document.createElement('div');message.dataset.id='voice-fixture';message.innerHTML='<div data-testid="msg-container"><audio controls src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="></audio></div>';document.getElementById('main').append(message)})()`);
+                await delay(2200);
+                check(await mediaWin.webContents.executeJavaScript(`(()=>{const button=document.querySelector('.haituo-voice-transcribe');if(!button)return false;button.click();return true})()`),'Actual transcription button missing');
+                await delay(1500);
+                check(mutedDuringRequest&&!mediaWin.webContents.isAudioMuted(),'Actual transcription button failed to mute and restore audio');
+                check(await mediaWin.webContents.executeJavaScript(`!!document.querySelector('.haituo-voice-result')&&[...document.querySelectorAll('audio')].every(a=>a.paused)`),'Silent transcription did not complete or stop playback');
+            }finally{translateMap.set('caisheng:translate',translateOriginal)}
+            stages.push({source:'audio-routing-fixture',audioCalls,rejected,transcribed,groq,dedicated,mutedDuringRequest});
         }finally{globalThis.fetch=savedFetch}
         try {
             const handler=p.ipcMain._invokeHandlers.get('caisheng:translate');

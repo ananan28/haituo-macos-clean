@@ -1,0 +1,94 @@
+name: Diagnose Windows Signal application startup
+on:
+  workflow_dispatch:
+  push:
+    branches: [diagnostic/windows-signal-startup]
+    paths: [.github/workflows/windows-runtime-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore and prepare repaired release
+        run: python windows/prepare.py
+      - name: Install fixed packaging tools
+        shell: bash
+        run: |
+          mkdir -p windows/tools
+          echo '{"private":true}' > windows/tools/package.json
+          npm install --prefix windows/tools --ignore-scripts --no-audit --no-fund --save-exact electron-builder@26.0.12 tar@7.5.22
+          mkdir -p macos/staging/app/node_modules/@signalapp/ringrtc/node_modules
+          cp -R windows/tools/node_modules/tar macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/
+          for module in '@isaacs' chownr minipass minizlib yallist; do
+            if [ -d "windows/tools/node_modules/$module" ]; then cp -R "windows/tools/node_modules/$module" macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/; fi
+          done
+      - name: Instrument actual Signal startup
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('macos/staging/app/bundles/main.js')
+          p.write_text("\n;(() => {\n if (process.env.HAITUO_STARTUP_DIAG !== '1') return;\n const electron = require('electron'), fs = require('fs'), path = require('path');\n const report={events:[],samples:[],ok:false}, output=process.env.HAITUO_STARTUP_REPORT;\n const log=(type,data)=>{report.events.push({time:Date.now(),type,data});fs.writeFileSync(output,JSON.stringify(report,null,2));};\n process.on('uncaughtExceptionMonitor',e=>log('uncaught',String(e.stack||e)));\n process.on('unhandledRejection',e=>log('rejection',String(e?.stack||e)));\n electron.app.on('web-contents-created',(_event,w)=>{\n  w.on('preload-error',(_e,p,e)=>log('preload-error',{path:p,error:String(e.stack||e)}));\n  w.on('render-process-gone',(_e,d)=>log('renderer-gone',d));\n  w.on('did-fail-load',(_e,c,d,u)=>log('load-failure',{code:c,description:d,url:u}));\n  w.on('console-message',(...args)=>log('console',String(args[0]?.message||args[2]||'')));\n });\n electron.app.whenReady().then(()=>{\n  log('ready',{userData:electron.app.getPath('userData')});\n  let selected=false,busy=false;\n  const timer=setInterval(async()=>{\n   if(busy)return;busy=true;\n   try {\n    for(const win of electron.BrowserWindow.getAllWindows()){\n     if(win.isDestroyed())continue;\n     const sample=await win.webContents.executeJavaScript(\"(()=>{const tab=document.querySelector('button[data-caisheng-tab-workspace=\\\"signal-main\\\"]');if(tab&&!window.diagSelected){tab.click();window.diagSelected=true}return {url:location.href,loading:!!document.querySelector('.app-loading-screen'),installed:!!document.querySelector('[class*=\\\"InstallScreen\\\"],.inbox'),text:document.body?.innerText?.slice(-4000),startApp:typeof window.startApp}})()\");\n     report.samples.push({time:Date.now(),windowId:win.id,...sample});\n     if(sample.installed&&!sample.loading)report.ok=true;\n    }\n    fs.writeFileSync(output,JSON.stringify(report,null,2));\n   }catch(e){log('snapshot-error',String(e.stack||e))}finally{busy=false}\n  },2000);\n  setTimeout(()=>{\n   clearInterval(timer);\n   const walk=(dir,depth=0)=>{if(depth>3||!fs.existsSync(dir))return;for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,entry.name);if(entry.isDirectory())walk(p,depth+1);else if(/\\.(log|jsonl)$/.test(entry.name)){try{const data=fs.readFileSync(p,'utf8');report.events.push({type:'log-tail',path:p,data:data.slice(-100000)})}catch{}}}};\n   walk(electron.app.getPath('userData'));\n   fs.writeFileSync(output,JSON.stringify(report,null,2));electron.app.exit(report.ok?0:1);\n  },90000);\n });\n})();\n"+p.read_text(encoding='utf-8'),encoding='utf-8')
+          PY
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          node --check macos/staging/app/bundles/main.js
+          node --check macos/staging/app/bundles/preload/main.js
+          node --check macos/staging/app/js/caisheng-webview-preload.js
+      - name: Build NSIS installation package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: node windows/tools/node_modules/electron-builder/cli.js --config windows/builder.json --win --x64 --dir --publish never
+      - name: Verify packaged native dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $app = Resolve-Path 'windows/out/win-unpacked'
+          $test = Join-Path $env:RUNNER_TEMP 'native-probe.cjs'
+          @'
+          const {createRequire}=require('module');
+          const path=require('path');
+          const load=createRequire(path.join(process.env.HAITUO_PACKED_APP,'resources','app.asar','package.json'));
+          for(const name of ['@signalapp/sqlcipher','@signalapp/libsignal-client','@signalapp/ringrtc','@indutny/simple-windows-notifications']){
+            load(name); console.log('Native load OK:',name);
+          }
+          '@ | Set-Content $test -Encoding utf8
+          $env:HAITUO_PACKED_APP = $app.Path
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $probe = Start-Process -FilePath (Join-Path $app '海拓.exe') -ArgumentList $test -Wait -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'native-probe.log') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'native-probe.err')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'native-probe.log')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'native-probe.err')
+          if ($probe.ExitCode -ne 0) { throw "Packaged native dependency load failed: $($probe.ExitCode)" }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+      - name: Launch actual Windows application
+        shell: pwsh
+        run: |
+          $env:HAITUO_STARTUP_DIAG = '1'
+          $env:HAITUO_STARTUP_REPORT = Join-Path $PWD 'windows/startup-report.json'
+          $app = Resolve-Path 'windows/out/win-unpacked/海拓.exe'
+          $p = Start-Process -FilePath $app -PassThru -RedirectStandardOutput 'windows/startup.stdout.log' -RedirectStandardError 'windows/startup.stderr.log'
+          if (-not $p.WaitForExit(120000)) { Stop-Process -Id $p.Id -Force; throw 'Startup diagnostic timeout' }
+          if ($p.ExitCode -ne 0) { throw "Actual Signal startup did not reach login or inbox: $($p.ExitCode)" }
+      - name: Upload actual startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Signal-startup-diagnostics
+          path: |
+            windows/startup-report.json
+            windows/startup.stdout.log
+            windows/startup.stderr.log
+          if-no-files-found: warn
+          retention-days: 14

@@ -15,7 +15,7 @@ async function haituoTestMessageScanning() {
         win=new p.BrowserWindow({show:true,width:1000,height:900,webPreferences:{partition:'haituo-message-fixture',preload:(0,s.join)($,'js','caisheng-webview-preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
         win.webContents.on('preload-error',(event,path,error)=>console.error('Fixture preload error:',error));
         win.webContents.on('console-message',(event)=>console.log('Fixture renderer:',event.message));
-        const html=`<html><body><style>#main{margin-top:100px}#main>div{min-height:70px}.selectable-text{white-space:pre-wrap}</style><div id="noise"></div><div id="main">
+        const html=`<html><body><style>#main{margin-top:20px;zoom:.6}#main>div{min-height:70px}.selectable-text{white-space:pre-wrap}</style><div id="noise"></div><div id="main">
         <div class="message-in" id="quoted"><div data-testid="quoted-message"><span class="selectable-text">Old quoted message must stay untouched</span><button onclick="window.quoteExpanded=true">Read more</button></div><span class="selectable-text">Actual reply only</span></div>
         <div data-testid="msg-container" id="legacy"><span class="selectable-text">Correct, up to 10</span></div>
         <div class="message-in" id="mixed"><span class="selectable-text">Hi 😊</span></div>

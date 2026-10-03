@@ -27,9 +27,10 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
         haituoApplyTranslationConfig({...$p(),chatTextColor:'',outgoingBubbleColor:'',incomingBubbleColor:''});
         check((await haituoShowSettingsWindow()).ok && caishengSettingsWindow,`Native settings window did not open`);
+        states.push({stage:`native-settings-created`,url:caishengSettingsWindow.webContents.getURL()});
         let settingsDeadline=Date.now()+10000;
         while(caishengSettingsWindow.webContents.isLoading()&&Date.now()<settingsDeadline)await wait(100);
-        const nativeColor=await caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const before=collect().outgoingBubbleColor,chosen=form.outgoingBubbleColor.value;form.outgoingBubbleColor.dispatchEvent(new Event('input',{bubbles:true}));return{before,chosen,after:collect().outgoingBubbleColor}})()`);
+        const nativeColor=await Promise.race([caishengSettingsWindow.webContents.executeJavaScript(`(()=>{const before=collect().outgoingBubbleColor,chosen=form.outgoingBubbleColor.value,preview=form.outgoingBubbleColor.oninput;form.outgoingBubbleColor.oninput=()=>setTimeout(preview,0);form.outgoingBubbleColor.dispatchEvent(new Event('input',{bubbles:true}));return{before,chosen,after:collect().outgoingBubbleColor}})()`),wait(20000).then(()=>{throw Error('Native color picker script timed out')})]);
         check(nativeColor.before===''&&nativeColor.after===nativeColor.chosen,'Native settings drops an explicitly chosen default bubble color');
         await wait(300);check($p().outgoingBubbleColor===nativeColor.chosen,'Native color preview did not save');
         caishengSettingsWindow.close();states.push({source:'native-color-picker',nativeColor});

@@ -59,8 +59,10 @@ jobs:
           '@ | Set-Content $test -Encoding utf8
           $env:HAITUO_PACKED_APP = $app.Path
           $env:ELECTRON_RUN_AS_NODE = '1'
-          & (Join-Path $app '海拓.exe') $test
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged native dependency load failed' }
+          $probe = Start-Process -FilePath (Join-Path $app '海拓.exe') -ArgumentList $test -Wait -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'native-probe.log') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'native-probe.err')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'native-probe.log')
+          Get-Content (Join-Path $env:RUNNER_TEMP 'native-probe.err')
+          if ($probe.ExitCode -ne 0) { throw "Packaged native dependency load failed: $($probe.ExitCode)" }
           Remove-Item Env:ELECTRON_RUN_AS_NODE
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4

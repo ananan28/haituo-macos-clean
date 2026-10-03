@@ -13,8 +13,10 @@ if app.exists(): shutil.rmtree(app)
 shutil.copytree(root / 'work/app', app)
 runpy.run_path('repair/prepare-repairs.py', run_name='__main__')
 pkg = json.loads((app/'package.json').read_text())
-pkg['version'] = '1.1.22'
+pkg['signalProtocolVersion'] = pkg['version']
+pkg['version'] = '1.1.23'
 (app/'package.json').write_text(json.dumps(pkg, ensure_ascii=False, indent=2), encoding='utf-8')
+runpy.run_path('windows/patch-network.py',run_name='__main__')
 def fetch(url):
     with urllib.request.urlopen(url, timeout=120) as response: return response.read()
 def extract(data, dest, prefix=''):
@@ -55,4 +57,4 @@ config = {
              'createDesktopShortcut':True, 'artifactName':'Haituo-${version}-Windows-${arch}-Setup.${ext}'}
 }
 pathlib.Path('windows/builder.json').write_text(json.dumps(config,ensure_ascii=False,indent=2),encoding='utf-8')
-print('Prepared repaired Windows application 1.1.22')
+print('Prepared repaired Windows application 1.1.23')

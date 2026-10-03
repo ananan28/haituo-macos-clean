@@ -5,11 +5,11 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
         if (event?.type !== `haituo-verify-state` || !Z || Z.isDestroyed()) return;
         try {
             const page = await Z.webContents.executeJavaScript(snapshot);
-            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),page});
+            process.send?.({type:`haituo-verify-result`,requestId:event.requestId,visible:Z.isVisible(),bounds:Z.getBounds(),page,dockVisible:p.app.dock?.isVisible()});
         } catch (error) { process.send?.({type:`haituo-verify-result`,requestId:event.requestId,error:String(error)}); }
     });
     else p.app.whenReady().then(async () => {
-        const output = process.env.HAITUO_VERIFY_RESULT, ids = [`signal-verify-one`, `signal-verify-two`], states=[];
+        const output = process.env.HAITUO_VERIFY_RESULT, ids = [], states=[];
         const check=(value,message)=>{if(!value)throw Error(message)};
         const state=id=>new Promise((resolve,reject)=>{
             const child=Yg.get(id),requestId=`verify-${Date.now()}-${id}`;
@@ -27,11 +27,23 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
             const launch=p.ipcMain._invokeHandlers.get(`caisheng:launch-signal-profile`),sync=p.ipcMain._invokeHandlers.get(`caisheng:sync-signal-profile`);
             check(typeof launch===`function`&&typeof sync===`function`,`Missing account handlers`);
-            for(const id of ids){await launch({},id);deadline=Date.now()+90000;while(!Xg.has(id)&&Date.now()<deadline)await wait(500);check(Xg.has(id),`Account did not initialize: ${id}`)}
+            for(let account=0;account<2;account++){
+                const beforeIds=new Set(Yg.keys());
+                await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__add').click()`);await wait(500);
+                await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__picker button')].find(button=>button.textContent.includes('Signal')).click()`);
+                deadline=Date.now()+90000;let id;
+                while(!(id=[...Yg.keys()].find(id=>!beforeIds.has(id)))&&Date.now()<deadline)await wait(250);
+                check(id,`Actual add-account UI did not launch Signal`);ids.push(id);
+                while(!Xg.has(id)&&Date.now()<deadline)await wait(500);check(Xg.has(id),`Account did not initialize: ${id}`);
+            }
+            const reordered=await Z.webContents.executeJavaScript(`(()=>{const a=document.querySelector('button[data-caisheng-tab-workspace="${ids[0]}"]'),b=document.querySelector('button[data-caisheng-tab-workspace="${ids[1]}"]'),data=new DataTransfer();a.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:data}));b.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:data}));b.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));return true})()`);
+            await wait(500);
+            const order=await Z.webContents.executeJavaScript(`JSON.parse(localStorage.getItem('caisheng.workspaces.v3')).map(item=>item.id)`);
+            check(reordered&&order.indexOf(ids[0])>order.indexOf(ids[1]),`Drag drop did not persist account order`);states.push({stage:`drag-reordered`,order});
             for(const id of [ids[0],ids[1],ids[0]]){
-                sync({}, {id,x:100,y:80,width:640,height:440,keepVisible:true});await wait(1200);
+                await Z.webContents.executeJavaScript(`document.querySelector('button[data-caisheng-tab-workspace="${id}"]').click()`);await wait(1200);
                 const accounts=await Promise.all(ids.map(state));check(accounts.filter(x=>x.visible).length===1&&accounts.find(x=>x.id===id)?.visible,`Account selection visibility failed`);
-                states.push({stage:`selected`,id,accounts});
+                check(accounts.every(x=>x.dockVisible===false),`Child Signal still appears in Dock`);states.push({stage:`selected`,id,accounts});
             }
             const selected=await state(ids[0]);
             const original=Z.getBounds();Z.setBounds({...original,x:original.x+35,y:original.y+25});await wait(1200);

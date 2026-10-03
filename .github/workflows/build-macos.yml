@@ -40,8 +40,8 @@ jobs:
           assert text.count(marker)==1, 'Unexpected baseline build script'
           text=text.replace(marker, marker+'mkdir -p macos/staging/app/node_modules/@signalapp/ringrtc/node_modules\ncp -R macos/packaging-deps/node_modules/. macos/staging/app/node_modules/@signalapp/ringrtc/node_modules/\n')
           text=text.replace(marker, marker+'python3 repair/prepare-repairs.py\n',1)
-          text=text.replace('--app-version=1.1.8 --build-version=1.1.8','--app-version=1.1.17 --build-version=1.1.17 --icon=macos/haituo.icns')
-          text=text.replace('海拓-1.1.8','海拓-1.1.17')
+          text=text.replace('--app-version=1.1.8 --build-version=1.1.8','--app-version=1.1.18 --build-version=1.1.18 --icon=macos/haituo.icns')
+          text=text.replace('海拓-1.1.8','海拓-1.1.18')
           p.write_text(text)
           PYCODE
       - name: Generate native macOS application icon
@@ -57,10 +57,12 @@ jobs:
         run: bash macos/build-mac.command
       - name: Verify native startup and account windows
         run: python3 repair/test-runtime.py
+      - name: Verify message translation, colors, and media layouts
+        run: python3 repair/test-fixtures.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: haituo-repaired-1.1.17-ARM64
+          name: haituo-repaired-1.1.18-ARM64
           retention-days: 7
           path: |
             macos/out/*.dmg

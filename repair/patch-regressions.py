@@ -29,6 +29,9 @@ new='''        const refresh = (async () => {
 s=replace(s,old,new)
 # Retain user-selected solid colors when retiring wallpaper settings.
 s=replace(s,'            e.chatTextColor = ``; e.outgoingBubbleColor = ``; e.incomingBubbleColor = ``;', '            for (const key of [`chatTextColor`,`outgoingBubbleColor`,`incomingBubbleColor`]) if (!/^#[0-9a-f]{6}$/iu.test(e[key] || ``)) e[key] = ``;')
+s=replace(s,"const initialColors=Object.fromEntries", "const haituoEditedColors=new Set();form.addEventListener('input',event=>{if(['chatTextColor','outgoingBubbleColor','incomingBubbleColor'].includes(event.target.name))haituoEditedColors.add(event.target.name)},true);\nconst initialColors=Object.fromEntries")
+s=replace(s,"if(form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';", "if(!haituoEditedColors.has(key)&&form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';")
+s=replace(s,"document.getElementById('resetColors').onclick=()=>{for", "document.getElementById('resetColors').onclick=()=>{haituoEditedColors.clear();for")
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=replace(s,'                e.chatTextColor = ``; e.outgoingBubbleColor = ``; e.incomingBubbleColor = ``;', '                for (const key of [`chatTextColor`,`outgoingBubbleColor`,`incomingBubbleColor`]) if (!/^#[0-9a-f]{6}$/iu.test(e[key] || ``)) e[key] = ``;')
@@ -68,7 +71,7 @@ s=replace(s,'    const mode = settings.nativeTheme === "light" ? "light" : "dark
     haituoAppliedWhatsAppBody = document.body;''')
 s=replace(s,'    try { localStorage.setItem("theme",JSON.stringify(mode)); } catch {}','    try {if (localStorage.getItem("theme") !== JSON.stringify(mode)) localStorage.setItem("theme",JSON.stringify(mode));} catch {}')
 s=replace(s,'    style.textContent=`#haituo-whatsapp-translator', '    const css=`#haituo-whatsapp-translator')
-s=replace(s,'-webkit-text-fill-color:#fff!important}`;\n}', '-webkit-text-fill-color:#fff!important}`;\n    if(style.textContent!==css) style.textContent=css;\n}')
+s=replace(s,'-webkit-text-fill-color:#fff!important}`;\n}', '-webkit-text-fill-color:#fff!important}body:has([data-testid=media-viewer],[data-testid=media-editor],[role=dialog][aria-modal=true]) #haituo-whatsapp-translator{display:none!important}`;\n    if(style.textContent!==css) style.textContent=css;\n}')
 s=replace(s,'''    if (!composer?.isConnected) return;
     const footer = composer.closest("footer") || composer;''','''    if (!composer?.isConnected || !usableComposer(composer) || document.querySelector('[data-testid="media-viewer"],[data-testid="media-editor"],[role="dialog"][aria-modal="true"]')) {
         if (panel.style.display !== "none") panel.style.display = "none";
@@ -91,10 +94,15 @@ const haituoScheduleTranslatorLayout = () => {
         positionTranslator(findComposer());
     });
 };
+function haituoObserveTranslatorLayout() {
+if (!document.documentElement) return;
 new MutationObserver(records => {
     if (document.querySelector('[data-testid="media-viewer"],[data-testid="media-editor"],[role="dialog"][aria-modal="true"]')) positionTranslator(findComposer());
     if (records.some(record => !record.target.closest?.('#haituo-whatsapp-translator,#haituo-api-settings,footer,style'))) haituoScheduleTranslatorLayout();
 }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
+}
+if (document.documentElement) haituoObserveTranslatorLayout();
+else document.addEventListener('DOMContentLoaded',haituoObserveTranslatorLayout,{once:true});
 '''
 p.write_text(s)
 print('Applied 1.1.18 regressions: accessory Dock, refresh queue, persistent tab reorder, media bounds and idempotent appearance')

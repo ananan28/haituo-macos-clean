@@ -53,6 +53,15 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             Z.webContents.sendInputEvent({type:`mouseWheel`,x:settingsLayout.x,y:settingsLayout.y,deltaX:0,deltaY:-300,wheelTicksX:0,wheelTicksY:-3,canScroll:true,hasPreciseScrollingDeltas:true});await wait(400);
             const scrollTop=await Z.webContents.executeJavaScript(`document.querySelector('.CaishengPlatformShell__settings').scrollTop`);
             check(Math.abs(scrollTop-100)>1,`Inline settings wheel did not scroll`);
+            const originalSettings={...$p()};
+            for(const provider of ['openai','groq']){
+                await Z.webContents.executeJavaScript(`(()=>{const label=[...document.querySelectorAll('.CaishengPlatformShell__settings label')].find(e=>e.querySelector('span')?.textContent==='语音转文字服务'),select=label.querySelector('select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(provider)});select.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+                await wait(300);
+                check($p().voiceTranscriptionProvider===provider,`Voice provider was not saved immediately`);
+                const fieldShown=await Z.webContents.executeJavaScript(`(()=>{const labels=[...document.querySelectorAll('.CaishengPlatformShell__settings label')];return labels.some(e=>e.textContent.includes(${JSON.stringify(provider==='openai'?'OpenAI / 兼容服务 API Key':'Groq API Key')})&&e.querySelector('input[type=password]'))})()`);
+                check(fieldShown,`API field missing for selected voice provider`);states.push({stage:'inline-voice-provider',provider,fieldShown});
+            }
+            haituoApplyTranslationConfig(originalSettings);await wait(200);
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(400);
             states.push({stage:`inline-settings-wheel`,settingsLayout,scrollTop});
 

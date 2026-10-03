@@ -73,6 +73,11 @@ async function haituoTestSettingsSync() {
             check(hidden?state.hidden&&!state.expanded:!state.hidden&&state.expanded,'Global hide translation setting did not update guest');
             stages.push({source:'hide-translation-toggle',hidden,state});
         }
+        await mediaWin.webContents.executeJavaScript(`document.getElementById('haituo-wa-translator-toggle').click()`);await delay(600);
+        check($p().hideTranslationBox===false,'Local restore toggle did not save');
+        haituoApplyTranslationConfig({...$p(),hideTranslationBox:true});await delay(1000);
+        check(await mediaWin.webContents.executeJavaScript(`!!document.getElementById('haituo-wa-translator-toggle')&&!document.querySelector('#haituo-whatsapp-translator textarea')`),'Local toolbar preference overrides global hide setting');
+        stages.push({source:'local-then-global-hide',ok:true});
         const savedFetch=globalThis.fetch,audioCalls=[];
         const audioHandler=p.ipcMain._invokeHandlers.get('caisheng:transcribe-audio'),audioEvent={senderFrame:{url:'https://web.whatsapp.com/'}},audio={bytes:[1,2,3,4,5],mimeType:'audio/ogg',fileName:'fixture.ogg'};
         try{

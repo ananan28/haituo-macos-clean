@@ -8,6 +8,8 @@ s=replace(s,'    if (process.platform === `darwin` && (caishengMenuOpen || [...h
 s=replace(s,'    Z = new p.BrowserWindow(g)', '    g.acceptFirstMouse = process.platform === `darwin`,\n    Z = new p.BrowserWindow(g)')
 s=replace(s,'(0, c.spawn)(process.execPath, [ `--caisheng-profile=${t}` ]','(0, c.spawn)(process.platform === `darwin` ? (0,s.join)(process.resourcesPath, `..`, `Helpers`, `HaituoAccount.app`, `Contents`, `MacOS`, `海拓`) : process.execPath, [ `--caisheng-profile=${t}` ]')
 s=replace(s,'            callback: () => finish(null)\n        });','            callback: () => finish(null)\n        });\n        if (process.env.HAITUO_VERIFY_RUNTIME === `1` && title === `新增账号`) setTimeout(() => {finish(`signal`);menu.closePopup(Z)},300);')
+s=replace(s,'stdio: process.env.HAITUO_WINDOW_TEST === `1` ?', 'stdio: (process.env.HAITUO_WINDOW_TEST === `1` || process.env.HAITUO_VERIFY_RUNTIME === `1` || process.env.HAITUO_SETTINGS_TEST === `1`) ?')
+s=replace(s,'r.once(`exit`, () => {', 'r.once(`exit`, (code,signal) => {if(process.env.HAITUO_VERIFY_RUNTIME === `1`) console.error(`Account helper exit`,t,code,signal);')
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=replace(s,'overlayActive = Boolean(b || c);','overlayActive = Boolean(b || c) && !forceVisible;')

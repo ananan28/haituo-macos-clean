@@ -45,8 +45,9 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(mainPage.installed&&!mainPage.loading,`Main Signal stayed on loading screen`);states.push({stage:`main-signal-ready`,page:mainPage});
             await mouseClick('.CaishengPlatformShell__settingsButton');await wait(500);
             check(!caishengSettingsWindow,`Unexpected floating settings window`);
-            const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
+            const settingsLayout=await Z.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.CaishengPlatformShell__settings'),r=e.getBoundingClientRect();return{height:e.clientHeight,scroll:e.scrollHeight,width:e.clientWidth,scrollWidth:e.scrollWidth,overflow:getComputedStyle(e).overflowY,x:Math.round(r.x+30),y:Math.round(r.y+100)}})()`);
             check(settingsLayout.scroll>settingsLayout.height,`Inline settings not scrollable`);
+            check(settingsLayout.overflow===`scroll`&&settingsLayout.scrollWidth<=settingsLayout.width+1,`Settings scrollbar is hidden or content overflows horizontally`);
             Z.focus();Z.webContents.focus();await wait(300);
             await Z.webContents.executeJavaScript(`window.inlineWheelEvents=[];document.addEventListener('wheel',e=>window.inlineWheelEvents.push({deltaY:e.deltaY,target:e.target.tagName,prevented:e.defaultPrevented}),true);document.querySelector('.CaishengPlatformShell__settings').scrollTop=100`);
             Z.webContents.sendInputEvent({type:`mouseMove`,x:settingsLayout.x,y:settingsLayout.y});await wait(100);

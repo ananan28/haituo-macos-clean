@@ -1,0 +1,37 @@
+name: Build exact original macOS baseline
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore exact uploaded baseline
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,pathlib,zipfile
+          m=json.loads(pathlib.Path('source-manifest.json').read_text())
+          data=b''.join(pathlib.Path(p).read_bytes() for p in m['parts'])
+          assert hashlib.sha256(data).hexdigest()==m['sha256']
+          pathlib.Path('source.zip').write_bytes(data)
+          with zipfile.ZipFile('source.zip') as z: z.extractall('.')
+          PYCODE
+      - name: Build original DMG
+        run: bash macos/build-mac.command
+      - uses: actions/upload-artifact@v4
+        with:
+          name: haituo-original-baseline-ARM64
+          retention-days: 7
+          path: macos/out/*.dmg
+          if-no-files-found: error

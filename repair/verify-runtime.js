@@ -2,7 +2,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
     const snapshot = `(() => {const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden';return {ready:document.readyState,loading:[...document.querySelectorAll('.app-loading-screen')].some(visible),installed:[...document.querySelectorAll('[class*="InstallScreen"],.inbox')].some(visible),shell:!!document.querySelector('.CaishengPlatformShell'),body:!!document.body&&document.body.children.length>0}})()`;
     if ($u !== `signal-main`) process.on(`message`, async event => {
-        if(event?.type===`haituo-verify-focus`){p.app.focus({steal:true});Z.show();Z.focus();return}
+        if(event?.type===`haituo-verify-focus`){p.app.focus({steal:true});Z.show();Z.focus();Z.webContents.sendInputEvent({type:'mouseDown',x:40,y:150,button:'left',clickCount:1});Z.webContents.sendInputEvent({type:'mouseUp',x:40,y:150,button:'left',clickCount:1});return}
         if (event?.type !== `haituo-verify-state` || !Z || Z.isDestroyed()) return;
         try {
             const page = await Z.webContents.executeJavaScript(snapshot);
@@ -115,6 +115,7 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                 for(let attempt=0;attempt<3;attempt++){
                     await wait(1000);
                     const stacking=windowOrder(),externalIndex=stacking.findIndex(win=>Number(win.pid)===foreground.pid),rootIndex=stacking.findIndex(win=>win.id===Number(Z.getMediaSourceId().split(`:`)[1])),account=await state(ids[0]),childIndex=stacking.findIndex(win=>win.id===Number(account.windowId.split(`:`)[1]));
+                    states.push({stage:'foreground-order-sample',externalIndex,rootIndex,childIndex,rootFocused:Z.isFocused(),focusedAccounts:[...caishengFocusedSignals],stacking:stacking.map(w=>({id:w.id,pid:w.pid,layer:w.layer}))});
                     check(externalIndex>=0&&externalIndex<rootIndex&&externalIndex<childIndex,`Haituo covers external foreground app`);
                     states.push({stage:`external-app-foreground`,externalIndex,rootIndex,childIndex});
                 }

@@ -59,10 +59,12 @@ jobs:
           done
           iconutil -c icns macos/haituo.iconset -o macos/haituo.icns
       - name: Build repaired DMG
+        id: package
         run: bash macos/build-mac.command
       - name: Verify native startup and account windows
         run: python3 repair/test-runtime.py
       - name: Verify message translation, colors, and media layouts
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         run: python3 repair/test-fixtures.py
       - uses: actions/upload-artifact@v4
         if: always()

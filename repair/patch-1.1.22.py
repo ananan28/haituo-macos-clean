@@ -7,8 +7,11 @@ p=root/'bundles/main.js';s=p.read_text()
 s=change(s,'    const child=Yg.get(Zg?.id);','    if(!Z.isFocused() && !caishengFocusedSignals.has(Zg?.id) && !caishengMenuOpen)return;\n    const child=Yg.get(Zg?.id);')
 s=change(s,'        if(Yg.get(t)===r&&e?.type===`haituo-show-settings-panel`)', '''        if(Yg.get(t)===r&&e?.type===`haituo-account-focus`){
             e.focused?caishengFocusedSignals.add(t):caishengFocusedSignals.delete(t);
-            if(e.focused&&Zg?.id===t&&Z?.isVisible()&&!Z.isMinimized()){
-                Z.showInactive();Z.moveTop();haituoMacOrderSelectedAccount();
+            return;
+        }
+        if(Yg.get(t)===r&&e?.type===`haituo-account-user-activation`){
+            if(Zg?.id===t&&Z?.isVisible()&&!Z.isMinimized()){
+                caishengFocusedSignals.add(t);Z.showInactive();Z.moveTop();haituoMacOrderSelectedAccount();
             }
             return;
         }
@@ -16,6 +19,8 @@ s=change(s,'        if(Yg.get(t)===r&&e?.type===`haituo-show-settings-panel`)', 
 s=change(s,'    Z.setMenuBarVisibility(!1), Z.webContents.on(`before-input-event`, rmRefresh)', '''    (()=>{if(process.platform===`darwin`&&$u!==`signal-main`){
         Z.on(`focus`,()=>process.send?.({type:`haituo-account-focus`,focused:true}));
         Z.on(`blur`,()=>process.send?.({type:`haituo-account-focus`,focused:false}));
+        p.app.on(`did-resign-active`,()=>process.send?.({type:`haituo-account-focus`,focused:false}));
+        Z.webContents.on(`before-mouse-event`,(_event,mouse)=>{if(mouse.type===`mouseDown`)process.send?.({type:`haituo-account-user-activation`})});
     }})(), Z.setMenuBarVisibility(!1), Z.webContents.on(`before-input-event`, rmRefresh)''')
 s=change(s,'        voiceTranscriptionProvider: typeof t?.voiceTranscriptionProvider == `string` ? t.voiceTranscriptionProvider : `groq`,','''        voiceTranscriptionProvider: typeof t?.voiceTranscriptionProvider == `string` ? t.voiceTranscriptionProvider : `groq`,
         openaiVoiceEndpoint: typeof t?.openaiVoiceEndpoint===`string`?t.openaiVoiceEndpoint.trim():$p().openaiVoiceEndpoint,
@@ -33,6 +38,7 @@ s=change(s,'            const response = await fetch(`${url.replace(/\\/$/u, ``)
 s=change(s,'                error.status=response.status;throw error;', '''                let code=``;try{const body=await response.json();const raw=String(body?.error?.code||body?.error?.type||``);if(/^[a-zA-Z0-9_-]{1,80}$/u.test(raw))code=raw}catch{}
                 error.message+=`；地址：${endpoint}；语音模型：${model}${code?`；服务错误：${code}`:``}`;
                 error.status=response.status;throw error;''')
+s=change(s,'Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();','Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();\n        if(Qg?.parentSourceId)try{Z.moveAbove(Qg.parentSourceId)}catch{}')
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
 s=change(s,'            voiceTranscriptionProvider: e.voiceTranscriptionProvider,','''            voiceTranscriptionProvider: e.voiceTranscriptionProvider,

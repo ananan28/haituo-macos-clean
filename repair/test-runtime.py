@@ -4,9 +4,11 @@ app = pathlib.Path('macos/out/海拓-darwin-arm64/海拓.app/Contents/MacOS/海�
 assert plistlib.loads((app.parent.parent/'Info.plist').read_bytes()).get('LSUIElement') is True
 out = pathlib.Path('macos/verification').resolve()
 out.mkdir(parents=True, exist_ok=True)
+order_tool=out/'window-order'
+subprocess.run(['swiftc','repair/window-order.swift','-o',str(order_tool)],check=True)
 result = out / 'runtime.json'
 with tempfile.TemporaryDirectory(prefix='haituo-verify-') as profile:
-    env = {**os.environ, 'HAITUO_VERIFY_RUNTIME': '1', 'HAITUO_VERIFY_RESULT': str(result)}
+    env = {**os.environ, 'HAITUO_VERIFY_RUNTIME': '1', 'HAITUO_VERIFY_RESULT': str(result), 'HAITUO_WINDOW_ORDER_TOOL':str(order_tool)}
     with (out / 'startup.log').open('w') as log:
         process = subprocess.Popen([str(app), '--user-data-dir='+profile], env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:

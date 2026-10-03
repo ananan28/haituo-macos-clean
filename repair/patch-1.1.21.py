@@ -4,6 +4,7 @@ def change(text,old,new):
     return text.replace(old,new,1)
 root=Path('macos/staging/app')
 p=root/'bundles/main.js';s=p.read_text()
+s=change(s,'function haituoMacOrderSelectedAccount() {','p.ipcMain.removeAllListeners(`haituo:order-selected-account`);p.ipcMain.on(`haituo:order-selected-account`,()=>haituoMacOrderSelectedAccount());\n\nfunction haituoMacOrderSelectedAccount() {')
 s=change(s,'        visible: r,\n        chatTextColor:', '        visible: r,\n        parentSourceId: Z?.getMediaSourceId(),\n        chatTextColor:')
 s=change(s,'    Z.show();\n    Z.moveTop();\n    Z.focus();\n    Z.webContents.focus();','    Z.showInactive();\n    if(Qg.parentSourceId)try{Z.moveAbove(Qg.parentSourceId)}catch{}')
 s=change(s,'    $u !== `signal-main` && Object.assign(g, {\n        frame: !1,','    $u !== `signal-main` && Object.assign(g, {\n        titleBarStyle: `default`,\n        frame: !1,')
@@ -31,6 +32,15 @@ s=change(s,'            if (!response.ok) throw Error(`${provider}语音识别�
 s=s.replace('            errors.push(e instanceof Error ? e.message : String(e));','            if(e?.status===401||e?.status===403)throw e;\n            errors.push(e instanceof Error ? e.message : String(e));')
 p.write_text(s)
 p=root/'bundles/preload/main.js';s=p.read_text()
+s=change(s,'            caishengShowSettingsWindow() {','            caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},\n            caishengShowSettingsWindow() {')
+s=change(s,'        function A(e, a = u ? 400 : 0, forceVisible = !1) {','''        (0,D9.useEffect)(()=>{
+            if(window.SignalContext.OS.platform!==`darwin`)return;
+            const timers=new Set();
+            const order=()=>{for(const delay of [0,80,200]){const timer=setTimeout(()=>{timers.delete(timer);window.SignalContext.caishengOrderSelectedAccount()},delay);timers.add(timer)}};
+            document.addEventListener('pointerup',order,true);
+            return()=>{document.removeEventListener('pointerup',order,true);for(const timer of timers)clearTimeout(timer)};
+        },[]);
+        function A(e, a = u ? 400 : 0, forceVisible = !1) {''')
 s=change(s,'                        if (window.SignalContext.OS.platform === `darwin`) {d(!1);l(!1);await window.SignalContext.caishengShowSettingsWindow();return}\n','')
 s=change(s,'const t = { ...m, ...x_(), ...e };','const t = { ...x_(), ...m, ...e };')
 s=s.replace('onChange: e => N({ voiceTranscriptionProvider: e.target.value })','onChange: e => Q({ voiceTranscriptionProvider: e.target.value })')

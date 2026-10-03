@@ -17,7 +17,9 @@ with tempfile.TemporaryDirectory(prefix='haituo-verify-') as profile:
                 raise RuntimeError('Runtime verification produced no result')
             report=json.loads(result.read_text())
             print(json.dumps(report, ensure_ascii=False))
-            if not report['ok']: raise RuntimeError(report['error'])
+            if not report['ok']:
+                print((out/'startup.log').read_text(errors='replace')[-12000:])
+                raise RuntimeError(report['error'])
         finally:
             try: process.wait(timeout=10)
             except subprocess.TimeoutExpired:

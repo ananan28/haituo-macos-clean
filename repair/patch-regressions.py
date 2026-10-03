@@ -29,6 +29,7 @@ new='''        const refresh = (async () => {
 s=replace(s,old,new)
 # Retain user-selected solid colors when retiring wallpaper settings.
 s=replace(s,'            e.chatTextColor = ``; e.outgoingBubbleColor = ``; e.incomingBubbleColor = ``;', '            for (const key of [`chatTextColor`,`outgoingBubbleColor`,`incomingBubbleColor`]) if (!/^#[0-9a-f]{6}$/iu.test(e[key] || ``)) e[key] = ``;')
+s=replace(s,'.catch(() => caishengSettingsWindow?.close());', '.catch(error => {console.error(`Haituo native settings load failed`,error);caishengSettingsWindow?.close()});')
 s=replace(s,"const initialColors=Object.fromEntries", "const haituoEditedColors=new Set();form.addEventListener('input',event=>{if(['chatTextColor','outgoingBubbleColor','incomingBubbleColor'].includes(event.target.name))haituoEditedColors.add(event.target.name)},true);\nconst initialColors=Object.fromEntries")
 s=replace(s,"if(form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';", "if(!haituoEditedColors.has(key)&&form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';")
 s=replace(s,"document.getElementById('resetColors').onclick=()=>{for", "document.getElementById('resetColors').onclick=()=>{haituoEditedColors.clear();for")

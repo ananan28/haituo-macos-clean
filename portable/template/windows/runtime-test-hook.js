@@ -19,7 +19,8 @@ if (process.platform === 'win32' && process.env.HAITUO_WINDOWS_RUNTIME === '1') 
   const addChild=async()=>{const before=new Set(Yg.keys());await Z.webContents.executeJavaScript("document.querySelector('.CaishengPlatformShell__add').click()");await wait(500);await Z.webContents.executeJavaScript("[...document.querySelectorAll('.CaishengPlatformShell__picker button')].find(b=>b.textContent.includes('Signal'))?.click()");const end=Date.now()+45000;let id;while(!(id=[...Yg.keys()].find(x=>!before.has(x)))&&Date.now()<end)await wait(200);check(id,'Add-account UI did not launch');return id};
   try{
    report.stages.push({stage:'initial-main',page:await mainReady()});save();
-   await reload();
+   report.stages.push({stage:"main-refresh-started"});save();
+   await reload();report.stages.push({stage:"main-refresh-navigation-complete"});save();
    if(process.env.HAITUO_WINDOWS_BASELINE==='1'){
     try{report.stages.push({stage:'reload-without-window-show',page:await mainReady(12000)});report.reproduced=false}catch(error){report.reproduced=true;report.stages.push({stage:'reload-stuck',error:String(error)})}
     Z.hide();await wait(300);Z.show();

@@ -118,6 +118,8 @@ async function haituoTestMessageScanning() {
         const beforeStale=sent.sent.length;
         await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='翻译期间保留新输入';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));setTimeout(()=>document.getElementById('fixture-composer').textContent='用户新输入',30)})()`);await delay(1500);
         sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.composer==='用户新输入'&&sent.quick==='翻译期间保留新输入','Stale translation overwrote/sent new input: '+JSON.stringify(sent));sendingChecks.push({stage:'stale-input-preserved',...sent});
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='';const q=document.getElementById('haituo-whatsapp-quick-input');q.value='切换模式取消旧发送';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));setTimeout(()=>document.querySelector('[data-haituo-block-chinese]').click(),30)})()`);await delay(1500);
+        sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.quick==='切换模式取消旧发送'&&sent.composer==='','Outgoing mode changed but old translation sent: '+JSON.stringify(sent));sendingChecks.push({stage:'mode-change-cancels-old-send',...sent});
         (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.quit();
     }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}
 }

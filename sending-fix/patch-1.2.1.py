@@ -52,6 +52,10 @@ change('            quickTranslate.disabled = quickRetranslate.disabled = a.disa
 change('        quickActionPending = !0; busy.add(composer);', '        const nativeBefore = read(composer);\n        quickActionPending = !0; busy.add(composer);')
 change('            clearComposer(composer), write(composer, translated),', '            if (!composer.isConnected || findComposer() !== composer || read(composer) !== nativeBefore) throw new Error("消息框已变化，未覆盖或发送；请重试");\n            clearComposer(composer), write(composer, translated),')
 change('            t = findComposer() || t, clearComposer(t), write(t, o),', '            if (!t.isConnected || findComposer() !== t || read(t).trim() !== n) throw new Error("消息框已变化，未覆盖或发送；请重试");\n            clearComposer(t), write(t, o),')
+change('    const n = read(t).trim(), direct = e && !settings.blockChineseOutgoing;', '    const n = read(t).trim(), outgoingMode = !!settings.blockChineseOutgoing, direct = e && !outgoingMode;')
+change('read(t).trim() !== n) throw', 'read(t).trim() !== n || e && outgoingMode !== !!settings.blockChineseOutgoing) throw')
+change('        const nativeBefore = read(composer);', '        const nativeBefore = read(composer), outgoingMode = !!settings.blockChineseOutgoing;')
+change('read(composer) !== nativeBefore) throw', 'read(composer) !== nativeBefore || sendAfter && outgoingMode !== !!settings.blockChineseOutgoing) throw')
 # Preserve newest local values while acknowledged writes are queued; old broadcasts
 # must not revert a later click. Failed saves restore authoritative settings visibly.
 change('function haituoSyncOutgoingControls() {', 'let haituoSaveQueue = Promise.resolve(), haituoSaveRevision = 0;\nconst haituoPendingSettings = new Map();\nfunction haituoPendingValues() { return Object.fromEntries([...haituoPendingSettings].map(([key, entry]) => [key, entry.value])); }\nfunction haituoSyncOutgoingControls() {')
@@ -96,6 +100,28 @@ handler='''p.ipcMain.removeHandler(`caisheng:web-native-send`), p.ipcMain.handle
         return true;
     }), '''
 s=s.replace(anchor,handler+anchor,1)
+start=s.index('function caishengSoftRefreshWindow() {');end=s.index('\nlet caishengParentHeartbeat',start)
+s=s[:start]+"""function caishengSoftRefreshWindow() {
+    if (!Z || Z.isDestroyed() || Z.webContents.isDestroyed()) return !1;
+    if (caishengSoftRefreshPromise) return !0;
+    const contents = Z.webContents;
+    caishengSoftRefreshPromise = new Promise((resolve, reject) => {
+        let timer;
+        const cleanup = () => { clearTimeout(timer); contents.removeListener(`did-finish-load`, loaded); contents.removeListener(`destroyed`, destroyed); };
+        const loaded = () => {cleanup();resolve()};
+        const destroyed = () => {cleanup();resolve()};
+        contents.once(`did-finish-load`, loaded); contents.once(`destroyed`, destroyed);
+        timer = setTimeout(() => {cleanup();reject(new Error(`Signal refresh navigation timed out`))}, 30000);
+        // Leave the initiating IPC/executeJavaScript stack before native navigation.
+        setImmediate(() => {
+            if (contents.isDestroyed()) return destroyed();
+            try { contents.reloadIgnoringCache(); } catch(error) {cleanup();reject(error)}
+        });
+    }).catch(error => X.warn(`Haituo refresh failed: ${error?.message ?? error}`)).finally(() => { caishengSoftRefreshPromise = null; });
+    return !0;
+}
+"""+s[end:]
+
 a='''if (process.env.HAITUO_VERIFY_RUNTIME === `1` && title === `新增账号`) setTimeout(() => {finish(`signal`);menu.closePopup(Z)},300);'''
 assert s.count(a)==1
 s=s.replace(a,'''if (process.env.HAITUO_VERIFY_RUNTIME === `1` && title === `新增账号`) process.once(`haituo-verify-select-add-account`, () => {finish(`signal`);menu.closePopup(Z)});''',1)

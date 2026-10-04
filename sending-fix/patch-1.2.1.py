@@ -104,6 +104,9 @@ handler='''p.ipcMain.removeHandler(`caisheng:web-native-send`), p.ipcMain.handle
         return true;
     }), '''
 s=s.replace(anchor,handler+anchor,1)
+a='            e.focused?caishengFocusedSignals.add(t):caishengFocusedSignals.delete(t);\n            return;'
+assert s.count(a)==1
+s=s.replace(a,'            const newlyFocused = e.focused && !caishengFocusedSignals.has(t);\n            e.focused ? caishengFocusedSignals.add(t) : caishengFocusedSignals.delete(t);\n            if (newlyFocused && process.platform === `darwin` && Zg?.id === t && Z?.isVisible() && !Z.isMinimized()) {\n                Z.showInactive(); Z.moveTop(); haituoMacOrderSelectedAccount();\n            }\n            return;',1)
 start=s.index('function caishengSoftRefreshWindow() {');end=s.index('\nlet caishengParentHeartbeat',start)
 s=s[:start]+"""function caishengSoftRefreshWindow() {
     if (!Z || Z.isDestroyed() || Z.webContents.isDestroyed()) return !1;

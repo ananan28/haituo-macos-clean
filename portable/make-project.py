@@ -13,6 +13,7 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     runpy.run_path(str(stage/'repair/prepare-repairs.py'),run_name='__main__')
     runpy.run_path(str(ROOT/'long-message/patch.py'),run_name='__main__')
     runpy.run_path(str(ROOT/'sending-fix/patch.py'),run_name='__main__')
+    runpy.run_path(str(ROOT/'sending-fix/patch-1.2.1.py'),run_name='__main__')
     project=pathlib.Path(temp)/'Haituo-Portable-Project'
     shutil.copytree(ROOT/'portable/template',project)
     shutil.copytree(stage/'macos/staging/app',project/'src/app',symlinks=True)
@@ -25,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
                 file.write_bytes(text.replace('\r\n','\n').encode('utf-8'))
     hashes={p.relative_to(project).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob('*')) if p.is_file()}
     (project/'FILE-SHA256.json').write_text(json.dumps(hashes,ensure_ascii=False,indent=2),encoding='utf-8')
-    dest=OUT/'Haituo-Windows-1.1.25-macOS-1.1.24-Portable-Project.zip'
+    dest=OUT/'Haituo-Windows-1.2.1-macOS-1.2.1-Portable-Project.zip'
     with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         for p in sorted(project.rglob('*')):
             if p.is_file():

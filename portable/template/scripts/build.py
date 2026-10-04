@@ -68,7 +68,7 @@ def prepare(target):
     preload=app/'bundles/preload/main.js'
     text=preload.read_text(encoding='utf-8')
     import re
-    text=re.sub(r'(当前版本 |海拓 )1\.1\.\d+',lambda m:m.group(1)+CFG['versions'][target],text)
+    text=re.sub(r'(当前版本 |海拓 )\d+\.\d+\.\d+',lambda m:m.group(1)+CFG['versions'][target],text)
     preload.write_text(text,encoding='utf-8')
     for file in ['bundles/main.js','bundles/preload/main.js','js/caisheng-webview-preload.js']:
         run(['node','--check',app/file])

@@ -1,0 +1,126 @@
+name: Verify desktop sending and long-message fixes
+on:
+  push:
+    branches: ['fix/desktop-1.2.1']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: 1
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: windows
+          - os: macos-15
+            target: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python portable/make-project.py
+      - name: Build delivered project and run regressions
+        shell: python
+        run: |
+          import os,pathlib,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'sending-layout-delivery'
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile('portable/out/Haituo-Windows-1.2.1-macOS-1.2.1-Portable-Project.zip') as z:z.extractall(root)
+          project=root/'Haituo-Portable-Project'
+          subprocess.run(['python',str(project/'scripts/build.py'),'--target','${{ matrix.target }}','--test'],cwd=project,check=True)
+          parts=pathlib.Path('sending-fix/parts');parts.mkdir(parents=True,exist_ok=True)
+          package=project/('macos/out/海拓-1.2.1-arm64.dmg' if '${{ matrix.target }}'=='macos' else 'windows/out/Haituo-1.2.1-Windows-x64-Setup.exe')
+          import hashlib,json
+          (parts/'package.json').write_text(json.dumps({'filename':package.name,'size':package.stat().st_size,'sha256':hashlib.sha256(package.read_bytes()).hexdigest()}))
+          with package.open('rb') as stream:
+              i=0
+              while data:=stream.read(24*1024*1024):
+                  (parts/f'{i:02}.part').write_bytes(data);i+=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Desktop-${{ matrix.target }}-source-and-reports
+          path: |
+            portable/out/*.zip
+            sending-fix/parts/package.json
+            ${{ runner.temp }}/sending-layout-delivery/Haituo-Portable-Project/macos/verification/**
+            ${{ runner.temp }}/sending-layout-delivery/Haituo-Portable-Project/windows/verification/**
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-00
+          path: sending-fix/parts/00.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-01
+          path: sending-fix/parts/01.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-02
+          path: sending-fix/parts/02.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-03
+          path: sending-fix/parts/03.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-04
+          path: sending-fix/parts/04.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-05
+          path: sending-fix/parts/05.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-06
+          path: sending-fix/parts/06.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-07
+          path: sending-fix/parts/07.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-08
+          path: sending-fix/parts/08.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-09
+          path: sending-fix/parts/09.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-10
+          path: sending-fix/parts/10.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-${{ matrix.target }}-part-11
+          path: sending-fix/parts/11.part
+          if-no-files-found: ignore
+          compression-level: 0

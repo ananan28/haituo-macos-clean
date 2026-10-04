@@ -46,6 +46,12 @@ change('if (e && HAN.test(read(t)))','if (e && !direct && HAN.test(read(t)))')
 change('if (e && !sendOnce(t, o))','if (e && !await sendOnce(t, o))')
 change('toast(e ? "已翻译并发送" : "已翻译并替换")','toast(e ? direct ? "已发送原文" : "已翻译并发送" : "已翻译并替换")')
 change('if (!sendOnce(composer, translated))','if (!await sendOnce(composer, translated))')
+change('    const runQuick = async (forceAi, sendAfter = !1) => {', '    let quickActionPending = !1;\n    const runQuick = async (forceAi, sendAfter = !1) => {')
+change('        if (!source || !composer) return;\n        quickTranslate.disabled', '        if (!source || !composer || quickActionPending || busy.has(composer)) return;\n        quickActionPending = !0; busy.add(composer);\n        quickTranslate.disabled')
+change('            quickTranslate.disabled = quickRetranslate.disabled = a.disabled = s.disabled = !1, sendAfter', '            quickActionPending = !1; busy.delete(composer);\n            quickTranslate.disabled = quickRetranslate.disabled = a.disabled = s.disabled = !1, sendAfter')
+change('        quickActionPending = !0; busy.add(composer);', '        const nativeBefore = read(composer);\n        quickActionPending = !0; busy.add(composer);')
+change('            clearComposer(composer), write(composer, translated),', '            if (!composer.isConnected || findComposer() !== composer || read(composer) !== nativeBefore) throw new Error("消息框已变化，未覆盖或发送；请重试");\n            clearComposer(composer), write(composer, translated),')
+change('            t = findComposer() || t, clearComposer(t), write(t, o),', '            if (!t.isConnected || findComposer() !== t || read(t).trim() !== n) throw new Error("消息框已变化，未覆盖或发送；请重试");\n            clearComposer(t), write(t, o),')
 # Preserve newest local values while acknowledged writes are queued; old broadcasts
 # must not revert a later click. Failed saves restore authoritative settings visibly.
 change('function haituoSyncOutgoingControls() {', 'let haituoSaveQueue = Promise.resolve(), haituoSaveRevision = 0;\nconst haituoPendingSettings = new Map();\nfunction haituoPendingValues() { return Object.fromEntries([...haituoPendingSettings].map(([key, entry]) => [key, entry.value])); }\nfunction haituoSyncOutgoingControls() {')

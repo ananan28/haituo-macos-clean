@@ -12,6 +12,7 @@ async function haituoTestMessageScanning() {
         p.ipcMain.removeHandler(`caisheng:translate`);
         p.ipcMain.handle(`caisheng:translate`,async(event,value)=>{
             requests.push(value);
+            if(value.purpose==='input')await delay(100);
             const count=(attempts.get(value.text)||0)+1;attempts.set(value.text,count);
             if(value.text==='Retry without page changes'&&count===1)throw Error('Fixture temporary service failure');
             return {text:value.purpose==='input'?'English translation':'译：'+value.text};
@@ -111,6 +112,12 @@ async function haituoTestMessageScanning() {
         await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='原生回车发送中文';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);await delay(1500);
         sent=await sendSnapshot();const native=await win.webContents.executeJavaScript(`({trustedEnter:window.trustedEnter,attachmentClicked:!!window.attachmentClicked})`);
         check(sent.sent.at(-1)==='原生回车发送中文'&&sent.quick===''&&native.trustedEnter===1&&!native.attachmentClicked&&requests.length===beforeSend,'Native Enter fallback failed: '+JSON.stringify({sent,native}));sendingChecks.push({stage:'trusted-enter-no-attachment',...sent,...native});
+        await setBlock(true);beforeSend=requests.length;const sentCount=sent.sent.length;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='并发回车只发送一次';for(let i=0;i<3;i++)q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);await delay(1600);
+        sent=await sendSnapshot();check(sent.sent.length===sentCount+1&&requests.length===beforeSend+1,'Concurrent Enter duplicated request/send: '+JSON.stringify(sent));sendingChecks.push({stage:'concurrent-enter-once',...sent});
+        const beforeStale=sent.sent.length;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='翻译期间保留新输入';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));setTimeout(()=>document.getElementById('fixture-composer').textContent='用户新输入',30)})()`);await delay(1500);
+        sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.composer==='用户新输入'&&sent.quick==='翻译期间保留新输入','Stale translation overwrote/sent new input: '+JSON.stringify(sent));sendingChecks.push({stage:'stale-input-preserved',...sent});
         (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.quit();
     }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}
 }

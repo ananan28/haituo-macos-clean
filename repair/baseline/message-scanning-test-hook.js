@@ -1,16 +1,18 @@
 async function haituoTestMessageScanning() {
-    if (process.platform !== `darwin` || $u !== `signal-main` || process.env.HAITUO_MESSAGE_TEST !== `1`) return;
+    if ($u !== `signal-main` || process.env.HAITUO_MESSAGE_TEST !== `1`) return;
     const requests=[], attempts=new Map(), delay=ms=>new Promise(r=>setTimeout(r,ms));
     const output=process.env.HAITUO_MESSAGE_TEST_RESULT;
     const check=(value,message)=>{if(!value)throw Error(message)};
-    let win;
+    let win,fixtureConfig={hideTranslationBox:true,blockChineseOutgoing:true};
     try {
+        p.ipcMain.removeHandler('caisheng:get-translation-config');
+        p.ipcMain.handle('caisheng:get-translation-config',()=>fixtureConfig);
         p.ipcMain.removeHandler(`caisheng:translate`);
         p.ipcMain.handle(`caisheng:translate`,async(event,value)=>{
             requests.push(value);
             const count=(attempts.get(value.text)||0)+1;attempts.set(value.text,count);
             if(value.text==='Retry without page changes'&&count===1)throw Error('Fixture temporary service failure');
-            return {text:'译：'+value.text};
+            return {text:value.purpose==='input'?'English translation':'译：'+value.text};
         });
         win=new p.BrowserWindow({show:true,width:1000,height:900,webPreferences:{partition:'haituo-message-fixture',preload:(0,s.join)($,'js','caisheng-webview-preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
         win.webContents.on('preload-error',(event,path,error)=>console.error('Fixture preload error:',error));
@@ -41,7 +43,7 @@ async function haituoTestMessageScanning() {
         check(requests.some(row=>row.text==='First line 123\n\nSecond line 456 with https://example.com'),'Paragraph source changed');
         const before=requests.length;await delay(4500);check(requests.length===before,'Repeated scan translated completed messages again');
         const longLayouts=[];
-        for (const mode of ['fixed-height','line-clamp','inline-wrapper','expanded']) {
+        for (const mode of ['fixed-height','line-clamp','inline-wrapper','expanded','outer-fixed-height']) {
             await win.webContents.executeJavaScript(`(()=>{
                 const main=document.getElementById('main');main.innerHTML='';main.style.zoom='1';
                 const row=document.createElement('div');row.className='message-in';row.id='long';row.style.cssText='width:300px;';
@@ -55,7 +57,7 @@ async function haituoTestMessageScanning() {
                     text.textContent='Truncated long message';wrap.style.cssText='height:90px;max-height:90px;overflow:visible';
                     const more=document.createElement('button');more.textContent='Read more';more.onclick=()=>{text.textContent=('Expanded WhatsApp message with long paragraphs. ').repeat(18);more.remove();};wrap.append(more);
                 }
-                wrap.prepend(text);row.append(wrap);main.append(row);scrollTo(0,0);
+                wrap.prepend(text);if (${JSON.stringify(mode)}==='outer-fixed-height'){const outer=document.createElement('div');outer.style.cssText='height:90px;max-height:90px;overflow:visible';outer.append(wrap);row.append(outer)}else row.append(wrap);main.append(row);scrollTo(0,0);
             })()`);
             let layout;
             for(let tries=0;tries<80;tries++) {
@@ -64,8 +66,30 @@ async function haituoTestMessageScanning() {
             }
             check(layout&&layout.count===1&&layout.translationTop>=layout.sourceBottom-1&&layout.bubbleBottom>=layout.translationBottom-1,mode+' overlaps or escapes the bubble: '+JSON.stringify(layout));
             if(mode==='expanded')check(requests.some(r=>r.text.startsWith('Expanded WhatsApp message'))&&!requests.some(r=>r.text==='Truncated long message'),'Expanded text was not translated in full');
-            longLayouts.push({mode,...layout});
+            await win.webContents.executeJavaScript(`document.getElementById('long').style.width='220px'`);
+            const resized=await win.webContents.executeJavaScript(`(()=>{const row=document.getElementById('long'),source=row.querySelector('.selectable-text'),translation=row.querySelector('.haituo-wa-message-translation'),r=document.createRange();r.selectNodeContents(source);return {sourceBottom:r.getBoundingClientRect().bottom,translationTop:translation.getBoundingClientRect().top,bubbleBottom:row.getBoundingClientRect().bottom,translationBottom:translation.getBoundingClientRect().bottom}})()`);
+            check(resized.translationTop>=resized.sourceBottom-1&&resized.bubbleBottom>=resized.translationBottom-1,'Resize overlapped: '+JSON.stringify(resized));
+            longLayouts.push({mode,...layout,resized});
         }
-        (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts},null,2));win.destroy();p.app.quit();
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('main').innerHTML='';const footer=document.createElement('footer');footer.style.cssText='position:fixed;bottom:0;width:700px;height:100px';footer.innerHTML='<div id="fixture-composer" role="textbox" contenteditable="true" style="width:400px;height:40px"></div><button aria-label="Send" style="width:50px;height:35px">Send</button>';document.body.append(footer);window.nativeSent=[];window.confirmCalls=0;window.confirm=()=>{window.confirmCalls++;return false};const composer=document.getElementById('fixture-composer'),send=()=>{window.nativeSent.push(composer.textContent);composer.textContent='';composer.dispatchEvent(new Event('input',{bubbles:true}))};footer.querySelector('button').onclick=send;composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.defaultPrevented)send()});composer.focus();composer.dispatchEvent(new Event('focusin',{bubbles:true}));})()`);
+        const setBlock=async block=>{fixtureConfig={hideTranslationBox:false,blockChineseOutgoing:block};win.webContents.send('caisheng:translation-config-changed',fixtureConfig);await delay(300)};
+        const sendSnapshot=()=>win.webContents.executeJavaScript(`({sent:[...window.nativeSent],confirmCalls:window.confirmCalls,composer:document.getElementById('fixture-composer').textContent,quick:document.getElementById('haituo-whatsapp-quick-input')?.value})`);
+        const sendingChecks=[];
+        await setBlock(false);let beforeSend=requests.length;
+        await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('fixture-composer');c.textContent='直接发送中文按钮';document.querySelector('footer button').click();c.textContent='直接发送中文回车';c.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
+        let sent=await sendSnapshot();check(sent.sent.join('|')==='直接发送中文按钮|直接发送中文回车'&&sent.confirmCalls===0&&requests.length===beforeSend,'OFF native send changed original: '+JSON.stringify(sent));sendingChecks.push({stage:'off-native',...sent});
+        await setBlock(true);
+        await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('fixture-composer');c.textContent='开启禁止中文';document.querySelector('footer button').click();c.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
+        sent=await sendSnapshot();check(sent.sent.length===2&&sent.composer==='开启禁止中文','ON native Chinese not blocked');sendingChecks.push({stage:'on-native-blocked',...sent});
+        await setBlock(false);beforeSend=requests.length;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='关闭开关快速输入中文';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);await delay(1500);
+        sent=await sendSnapshot();check(sent.sent.at(-1)==='关闭开关快速输入中文'&&sent.quick===''&&requests.length===beforeSend&&sent.confirmCalls===0,'OFF quick send translated/failed: '+JSON.stringify(sent));sendingChecks.push({stage:'off-quick-original',...sent});
+        await setBlock(true);beforeSend=requests.length;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='开启开关快速输入翻译';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);await delay(1700);
+        sent=await sendSnapshot();check(sent.sent.at(-1)==='English translation'&&requests.length===beforeSend+1,'ON quick send did not translate: '+JSON.stringify(sent));sendingChecks.push({stage:'on-quick-translated',...sent});
+        await setBlock(false);beforeSend=requests.length;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='手动点击翻译';[...document.querySelectorAll('#haituo-whatsapp-translator button')].find(b=>b.textContent==='翻译').click()})()`);await delay(1500);
+        sent=await sendSnapshot();check(sent.sent.length===4&&sent.composer==='English translation'&&requests.slice(beforeSend).filter(r=>r.text==='手动点击翻译'&&r.purpose==='input').length===1,'Explicit translate failed when OFF: '+JSON.stringify(sent));sendingChecks.push({stage:'off-explicit-translate',...sent});
+        (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.quit();
     }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}
 }

@@ -14,7 +14,7 @@ function haituoWhatsAppTranslationMount(message, roots) {
         for (let node = root; node && node !== message; node = node.parentElement) {
             for (const [name, value] of Object.entries({height:'auto','max-height':'none',overflow:'visible','-webkit-line-clamp':'unset'})) node.style.setProperty(name,value,'important');
             if (getComputedStyle(node).display === '-webkit-box') node.style.setProperty('display','block','important');
-            if (node === mount) break;
+            // Include outer text wrappers whose fixed height can otherwise clip expanded content.
         }
     }
     // A bounded text flow prevents an inline/grid wrapper from sharing a row with its translation.
@@ -40,5 +40,5 @@ s=s.replace(a,'''                display: "block",
                 boxSizing: "border-box",
                 borderTop: "1px solid #ffffff66",''')
 p.write_text(s,encoding='utf-8')
-p=app/'bundles/preload/main.js';s=p.read_text(encoding='utf-8').replace('当前版本 1.1.22','当前版本 1.1.23').replace('海拓 1.1.22','海拓 1.1.23');p.write_text(s,encoding='utf-8')
-print('Fixed WhatsApp expanded long-message translation flow in macOS 1.1.23')
+p=app/'bundles/preload/main.js';s=p.read_text(encoding='utf-8').replace('当前版本 1.1.22','当前版本 1.1.24').replace('海拓 1.1.22','海拓 1.1.24');p.write_text(s,encoding='utf-8')
+print('Fixed WhatsApp expanded long-message translation flow in macOS 1.1.24')

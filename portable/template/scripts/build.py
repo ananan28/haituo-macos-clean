@@ -61,6 +61,15 @@ def prepare(target):
                 shutil.copytree(path, nested/path.name, dirs_exist_ok=True)
     if target == 'windows':
         run([sys.executable,'scripts/prepare-windows.py'])
+    pkgpath=app/'package.json'
+    pkg=json.loads(pkgpath.read_text(encoding='utf-8'))
+    if target=='windows': pkg['version']=CFG['versions'][target]
+    pkgpath.write_text(json.dumps(pkg,ensure_ascii=False,indent=2),encoding='utf-8')
+    preload=app/'bundles/preload/main.js'
+    text=preload.read_text(encoding='utf-8')
+    import re
+    text=re.sub(r'(当前版本 |海拓 )1\.1\.\d+',lambda m:m.group(1)+CFG['versions'][target],text)
+    preload.write_text(text,encoding='utf-8')
     for file in ['bundles/main.js','bundles/preload/main.js','js/caisheng-webview-preload.js']:
         run(['node','--check',app/file])
     return app, tools

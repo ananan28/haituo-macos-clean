@@ -20,6 +20,7 @@ change('applyChatColor(), applyTranslatorTheme(), wasHidden !==', 'applyChatColo
 change('}, applyChatColor(), applyTranslatorTheme(), await ipcRenderer.invoke("caisheng:set-translation-config", e);','}, applyChatColor(), applyTranslatorTheme(), haituoSyncOutgoingControls(), await ipcRenderer.invoke("caisheng:set-translation-config", e);')
 change('r.type = "checkbox", r.checked = !!settings.blockChineseOutgoing, r.onchange', 'r.type = "checkbox", r.setAttribute("data-haituo-block-chinese", ""), r.checked = !!settings.blockChineseOutgoing, r.onchange')
 change('document.body.append(panel), positionTranslator(e);','document.body.append(panel), haituoSyncOutgoingControls(), positionTranslator(e);')
+change('const n = t.querySelector(e) || document.querySelector(e), o =', 'const n = t.querySelector(e), o =')
 start=s.index('    const n = e.getBoundingClientRect(), o = [ ...t.querySelectorAll',s.index('function sendButtonFor'))
 end=s.index('\n}',start)
 s=s[:start]+'    return null;'+s[end:]
@@ -45,6 +46,32 @@ change('if (e && HAN.test(read(t)))','if (e && !direct && HAN.test(read(t)))')
 change('if (e && !sendOnce(t, o))','if (e && !await sendOnce(t, o))')
 change('toast(e ? "已翻译并发送" : "已翻译并替换")','toast(e ? direct ? "已发送原文" : "已翻译并发送" : "已翻译并替换")')
 change('if (!sendOnce(composer, translated))','if (!await sendOnce(composer, translated))')
+# Preserve newest local values while acknowledged writes are queued; old broadcasts
+# must not revert a later click. Failed saves restore authoritative settings visibly.
+change('function haituoSyncOutgoingControls() {', 'let haituoSaveQueue = Promise.resolve(), haituoSaveRevision = 0;\nconst haituoPendingSettings = new Map();\nfunction haituoPendingValues() { return Object.fromEntries([...haituoPendingSettings].map(([key, entry]) => [key, entry.value])); }\nfunction haituoSyncOutgoingControls() {')
+change('settings = { ...settings, ...next };', 'settings = { ...settings, ...next, ...haituoPendingValues() };')
+change('            ...e\n        }), settings.targetLanguage', '            ...e, ...haituoPendingValues()\n        }), settings.targetLanguage')
+start=s.index('async function saveSettings(e) {');end=s.index('\nfunction isWhatsApp()',start)
+s=s[:start]+"""async function saveSettings(e) {
+    const revision = ++haituoSaveRevision;
+    for (const [key, value] of Object.entries(e)) haituoPendingSettings.set(key, { revision, value });
+    Object.prototype.hasOwnProperty.call(e, "hideTranslationBox") && (panelPreferencePendingUntil = Date.now() + 3000);
+    settings = { ...settings, ...e };
+    applyChatColor(); applyTranslatorTheme(); haituoSyncOutgoingControls();
+    const operation = haituoSaveQueue.then(() => ipcRenderer.invoke("caisheng:set-translation-config", e));
+    haituoSaveQueue = operation.catch(() => {});
+    try { await operation; }
+    catch (error) {
+        for (const key of Object.keys(e)) if (haituoPendingSettings.get(key)?.revision === revision) haituoPendingSettings.delete(key);
+        await refreshSettings();
+        toast(`设置保存失败：${error instanceof Error ? error.message : String(error)}`, !0);
+        return !1;
+    }
+    for (const key of Object.keys(e)) if (haituoPendingSettings.get(key)?.revision === revision) haituoPendingSettings.delete(key);
+    haituoSyncOutgoingControls();
+    return !0;
+}
+"""+s[end:]
 p.write_text(s,encoding='utf-8')
 p=Path('macos/staging/app/bundles/main.js');s=p.read_text(encoding='utf-8')
 anchor='p.ipcMain.removeHandler(`caisheng:set-translation-config`)'

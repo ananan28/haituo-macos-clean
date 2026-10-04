@@ -95,5 +95,15 @@ handler='''p.ipcMain.removeHandler(`caisheng:web-native-send`), p.ipcMain.handle
         sender.sendInputEvent({type:`keyUp`,keyCode:`Enter`});
         return true;
     }), '''
-s=s.replace(anchor,handler+anchor,1);p.write_text(s,encoding='utf-8')
+s=s.replace(anchor,handler+anchor,1)
+a='''            n_();
+            try {Z.moveAbove(e.parentSourceId)}'''
+assert s.count(a)==1
+s=s.replace(a,'''            n_();
+            // Native activation/menu transitions may order out an accessory window
+            // while Electron still reports it visible. Restore its native ordering
+            // only for a selected account requested by the foreground host.
+            Z.showInactive();
+            try {Z.moveAbove(e.parentSourceId)}''',1)
+p.write_text(s,encoding='utf-8')
 print('1.2.1: synchronized outgoing controls, raw top-button send, semantic-only send buttons and native Enter fallback')

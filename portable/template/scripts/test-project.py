@@ -4,7 +4,9 @@ os.chdir(ROOT)
 parser=argparse.ArgumentParser();parser.add_argument('--target',choices=['windows','macos'],required=True)
 args=parser.parse_args()
 if args.target=='macos':
-    subprocess.run([sys.executable,'repair/test-runtime.py'],check=True)
+    # A native ordering regression was intermittent; require two complete runs.
+    for attempt in range(2):
+        subprocess.run([sys.executable,'repair/test-runtime.py'],check=True)
     subprocess.run([sys.executable,'repair/test-fixtures.py'],check=True)
 else:
     app=(ROOT/'windows/out/win-unpacked').resolve()

@@ -14,6 +14,13 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     project=pathlib.Path(temp)/'Haituo-Portable-Project'
     shutil.copytree(ROOT/'portable/template',project)
     shutil.copytree(stage/'macos/staging/app',project/'src/app',symlinks=True)
+    for file in project.rglob('*'):
+        if file.is_file():
+            data=file.read_bytes()
+            if b'\x00' not in data:
+                try: text=data.decode('utf-8')
+                except UnicodeDecodeError: continue
+                file.write_bytes(text.replace('\r\n','\n').encode('utf-8'))
     hashes={p.relative_to(project).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob('*')) if p.is_file()}
     (project/'FILE-SHA256.json').write_text(json.dumps(hashes,ensure_ascii=False,indent=2),encoding='utf-8')
     dest=OUT/'Haituo-Windows-1.1.24-macOS-1.1.22-Portable-Project.zip'
@@ -24,3 +31,4 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
                 entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o100644<<16
                 archive.writestr(entry,p.read_bytes())
     print(dest,hashlib.sha256(dest.read_bytes()).hexdigest())
+    os.chdir(ROOT)

@@ -1,0 +1,19 @@
+name: Export verified portable project
+on:
+  push:
+    branches: ['portable/verified-project']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python portable/make-project.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo-Verified-Portable-Source
+          path: portable/out/*.zip

@@ -1,6 +1,8 @@
 name: Build desktop installers
 on:
   workflow_dispatch:
+env:
+  PYTHONUTF8: 1
 permissions:
   contents: read
 jobs:

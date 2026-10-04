@@ -7,6 +7,8 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     assert hashlib.sha256(blob).hexdigest()=='f66e2ef08006d0cbf6b1ffec6c198eaaa702e81f6a6ec88327ea9e1fb4691a5c'
     with zipfile.ZipFile(io.BytesIO(blob)) as archive:archive.extractall(stage)
     shutil.copytree(ROOT/'repair',stage/'repair',dirs_exist_ok=True)
+    (stage/'macos/staging').mkdir(parents=True,exist_ok=True)
+    shutil.copytree(stage/'work/app',stage/'macos/staging/app',symlinks=True)
     os.chdir(stage)
     runpy.run_path(str(stage/'repair/prepare-repairs.py'),run_name='__main__')
     project=pathlib.Path(temp)/'Haituo-Portable-Project'

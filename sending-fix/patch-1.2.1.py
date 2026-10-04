@@ -56,6 +56,10 @@ change('    const n = read(t).trim(), direct = e && !settings.blockChineseOutgoi
 change('read(t).trim() !== n) throw', 'read(t).trim() !== n || e && outgoingMode !== !!settings.blockChineseOutgoing) throw')
 change('        const nativeBefore = read(composer);', '        const nativeBefore = read(composer), outgoingMode = !!settings.blockChineseOutgoing;')
 change('read(composer) !== nativeBefore) throw', 'read(composer) !== nativeBefore || sendAfter && outgoingMode !== !!settings.blockChineseOutgoing) throw')
+change('async function sendOnce(e, t) {', 'async function sendOnce(e, t, expectedMode = !!settings.blockChineseOutgoing) {')
+change('    if (!e.isConnected || normalized(read(e).trim())', '    if (expectedMode !== !!settings.blockChineseOutgoing) throw new Error("发送模式已变化，未发送；请重试");\n    if (!e.isConnected || normalized(read(e).trim())')
+change('await sendOnce(t, o)', 'await sendOnce(t, o, outgoingMode)')
+change('await sendOnce(composer, translated)', 'await sendOnce(composer, translated, outgoingMode)')
 # Preserve newest local values while acknowledged writes are queued; old broadcasts
 # must not revert a later click. Failed saves restore authoritative settings visibly.
 change('function haituoSyncOutgoingControls() {', 'let haituoSaveQueue = Promise.resolve(), haituoSaveRevision = 0;\nconst haituoPendingSettings = new Map();\nfunction haituoPendingValues() { return Object.fromEntries([...haituoPendingSettings].map(([key, entry]) => [key, entry.value])); }\nfunction haituoSyncOutgoingControls() {')

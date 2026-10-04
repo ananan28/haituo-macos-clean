@@ -40,6 +40,32 @@ async function haituoTestMessageScanning() {
         check(attempts.get('Retry without page changes')===2,'Failed message did not retry independently');
         check(requests.some(row=>row.text==='First line 123\n\nSecond line 456 with https://example.com'),'Paragraph source changed');
         const before=requests.length;await delay(4500);check(requests.length===before,'Repeated scan translated completed messages again');
-        (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests},null,2));win.destroy();p.app.quit();
+        const longLayouts=[];
+        for (const mode of ['fixed-height','line-clamp','inline-wrapper','expanded']) {
+            await win.webContents.executeJavaScript(`(()=>{
+                const main=document.getElementById('main');main.innerHTML='';main.style.zoom='1';
+                const row=document.createElement('div');row.className='message-in';row.id='long';row.style.cssText='width:300px;';
+                const wrap=document.createElement('div');wrap.setAttribute('data-pre-plain-text','metadata');
+                const text=document.createElement('span');text.className='selectable-text';text.dir='auto';
+                text.textContent=('A long WhatsApp message with several sentences and clear paragraph boundaries. ').repeat(12)+'\\n\\nFinal paragraph.';
+                if (${JSON.stringify(mode)}==='fixed-height') wrap.style.cssText='height:90px;max-height:90px;overflow:visible';
+                if (${JSON.stringify(mode)}==='inline-wrapper') wrap.style.display='inline';
+                if (${JSON.stringify(mode)}==='line-clamp') text.style.cssText='display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;max-height:90px;overflow:hidden';
+                if (${JSON.stringify(mode)}==='expanded') {
+                    text.textContent='Truncated long message';wrap.style.cssText='height:90px;max-height:90px;overflow:visible';
+                    const more=document.createElement('button');more.textContent='Read more';more.onclick=()=>{text.textContent=('Expanded WhatsApp message with long paragraphs. ').repeat(18);more.remove();};wrap.append(more);
+                }
+                wrap.prepend(text);row.append(wrap);main.append(row);scrollTo(0,0);
+            })()`);
+            let layout;
+            for(let tries=0;tries<80;tries++) {
+                layout=await win.webContents.executeJavaScript(`(()=>{const row=document.getElementById('long'),translation=row.querySelector('.haituo-wa-message-translation'),source=row.querySelector('.selectable-text');if(!translation)return null;const range=document.createRange();range.selectNodeContents(source);const sourceBottom=range.getBoundingClientRect().bottom;return {count:row.querySelectorAll('.haituo-wa-message-translation').length,sourceBottom,translationTop:translation.getBoundingClientRect().top,translationBottom:translation.getBoundingClientRect().bottom,bubbleBottom:row.getBoundingClientRect().bottom,expanded:!row.querySelector('button:not(.haituo-wa-message-translation button)')};})()`);
+                if(layout)break;await delay(150);
+            }
+            check(layout&&layout.count===1&&layout.translationTop>=layout.sourceBottom-1&&layout.bubbleBottom>=layout.translationBottom-1,mode+' overlaps or escapes the bubble: '+JSON.stringify(layout));
+            if(mode==='expanded')check(requests.some(r=>r.text.startsWith('Expanded WhatsApp message'))&&!requests.some(r=>r.text==='Truncated long message'),'Expanded text was not translated in full');
+            longLayouts.push({mode,...layout});
+        }
+        (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts},null,2));win.destroy();p.app.quit();
     }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}
 }

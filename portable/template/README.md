@@ -1,6 +1,6 @@
 # 海拓独立开发工程
 
-本工程同时构建 Windows x64 1.1.24 和 macOS ARM64 1.1.22。所有应用代码、资源、随附 JavaScript 依赖和构建脚本都在本目录内。移动整个目录，或提交到你自己的新仓库即可继续开发，不需要以前的仓库、电脑、source.zip 分卷或已安装的海拓。
+本工程同时构建 Windows x64 1.1.24 和 macOS ARM64 1.1.23。所有应用代码、资源、随附 JavaScript 依赖和构建脚本都在本目录内。移动整个目录，或提交到你自己的新仓库即可继续开发，不需要以前的仓库、电脑、source.zip 分卷或已安装的海拓。
 
 ## 新电脑构建
 
@@ -18,7 +18,7 @@ Mac，在项目目录终端执行：
 python3 scripts/build.py --target macos --test
 ```
 
-首次构建需要联网下载固定版本的 Electron、打包工具及原生依赖。Windows 输出 `windows/out/Haituo-1.1.24-Windows-x64-Setup.exe`；Mac 输出 `macos/out/海拓-1.1.22-arm64.dmg`。构建不发布任何版本。Mac 使用本地临时签名；本工程不包含开发者证书或 Apple 公证凭据。
+首次构建需要联网下载固定版本的 Electron、打包工具及原生依赖。Windows 输出 `windows/out/Haituo-1.1.24-Windows-x64-Setup.exe`；Mac 输出 `macos/out/海拓-1.1.23-arm64.dmg`。构建不发布任何版本。Mac 使用本地临时签名；本工程不包含开发者证书或 Apple 公证凭据。
 
 ## 修改代码
 

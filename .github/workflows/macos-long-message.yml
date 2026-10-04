@@ -1,0 +1,112 @@
+name: Fix Mac WhatsApp long-message layout
+on:
+  push:
+    branches: ['fix/macos-long-message']
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python portable/make-project.py
+      - name: Build delivered project and run regressions
+        shell: python
+        run: |
+          import os,pathlib,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'long-message-delivery'
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile('portable/out/Haituo-Windows-1.1.24-macOS-1.1.23-Portable-Project.zip') as z:z.extractall(root)
+          project=root/'Haituo-Portable-Project'
+          subprocess.run(['python',str(project/'scripts/build.py'),'--target','macos','--test'],cwd=project,check=True)
+          parts=pathlib.Path('long-message/parts');parts.mkdir(parents=True,exist_ok=True)
+          dmg=project/'macos/out/海拓-1.1.23-arm64.dmg'
+          with dmg.open('rb') as stream:
+              i=0
+              while data:=stream.read(24*1024*1024):
+                  (parts/f'{i:02}.part').write_bytes(data);i+=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Mac-1.1.23-source-and-reports
+          path: |
+            portable/out/*.zip
+            ${{ runner.temp }}/long-message-delivery/Haituo-Portable-Project/macos/verification/**
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-00
+          path: long-message/parts/00.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-01
+          path: long-message/parts/01.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-02
+          path: long-message/parts/02.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-03
+          path: long-message/parts/03.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-04
+          path: long-message/parts/04.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-05
+          path: long-message/parts/05.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-06
+          path: long-message/parts/06.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-07
+          path: long-message/parts/07.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-08
+          path: long-message/parts/08.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-09
+          path: long-message/parts/09.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-10
+          path: long-message/parts/10.part
+          if-no-files-found: ignore
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-1.1.23-DMG-part-11
+          path: long-message/parts/11.part
+          if-no-files-found: ignore
+          compression-level: 0

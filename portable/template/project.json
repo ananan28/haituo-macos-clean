@@ -1,6 +1,6 @@
 {
   "name": "Haituo portable development project",
-  "versions": {"windows": "1.1.24", "macos": "1.1.22"},
+  "versions": {"windows": "1.1.24", "macos": "1.1.23"},
   "signalProtocolVersion": "8.29.0-alpha.1",
   "tools": {"electron": "44.1.0", "electron-builder": "26.0.12", "packager": "18.3.6", "tar": "7.5.22"},
   "native": {

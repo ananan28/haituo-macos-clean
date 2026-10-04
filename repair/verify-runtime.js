@@ -112,6 +112,8 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             states.push({stage:'loaded-whatsapp-no-flash',violations:await Z.webContents.executeJavaScript(`JSON.parse(document.getElementById('paint-fixture')?.dataset.paintViolations||'[]')`)});
             const foreground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,[`--foreground-window`],{stdio:`ignore`});
             try{
+                for(let ready=0;ready<100&&!windowOrder().some(w=>Number(w.pid)===foreground.pid);ready++)await wait(100);
+                check(windowOrder().some(w=>Number(w.pid)===foreground.pid),'External test window did not become ready');
                 for(let attempt=0;attempt<3;attempt++){
                     await wait(1000);
                     const stacking=windowOrder(),externalIndex=stacking.findIndex(win=>Number(win.pid)===foreground.pid),rootIndex=stacking.findIndex(win=>win.id===Number(Z.getMediaSourceId().split(`:`)[1])),account=await state(ids[0]),childIndex=stacking.findIndex(win=>win.id===Number(account.windowId.split(`:`)[1]));
@@ -126,6 +128,8 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
                 states.push({stage:'child-activation-window-group',childIndex,rootIndex,externalIndex});
                 const nextForeground=(0,c.spawn)(process.env.HAITUO_WINDOW_ORDER_TOOL,['--foreground-window'],{stdio:'ignore'});
                 try{
+                    for(let ready=0;ready<100&&!windowOrder().some(w=>Number(w.pid)===nextForeground.pid);ready++)await wait(100);
+                    check(windowOrder().some(w=>Number(w.pid)===nextForeground.pid),'Second external test window did not become ready');
                     await wait(1000);
                     for(let sample=0;sample<5;sample++){await wait(150);stacking=windowOrder();externalIndex=stacking.findIndex(w=>Number(w.pid)===nextForeground.pid);rootIndex=stacking.findIndex(w=>w.id===Number(Z.getMediaSourceId().split(':')[1]));const ci=stacking.findIndex(w=>w.id===Number(account.windowId.split(':')[1]));states.push({stage:'external-after-child-sample',externalIndex,rootIndex,childIndex:ci,rootFocused:Z.isFocused(),focusedAccounts:[...caishengFocusedSignals]});check(externalIndex>=0&&externalIndex<ci&&externalIndex<rootIndex,'Delayed account ordering covers another app');}
                     states.push({stage:'external-activation-after-child',ok:true});

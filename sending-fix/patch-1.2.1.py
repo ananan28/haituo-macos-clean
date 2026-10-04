@@ -96,14 +96,8 @@ handler='''p.ipcMain.removeHandler(`caisheng:web-native-send`), p.ipcMain.handle
         return true;
     }), '''
 s=s.replace(anchor,handler+anchor,1)
-a='''            n_();
-            try {Z.moveAbove(e.parentSourceId)}'''
+a='''if (process.env.HAITUO_VERIFY_RUNTIME === `1` && title === `新增账号`) setTimeout(() => {finish(`signal`);menu.closePopup(Z)},300);'''
 assert s.count(a)==1
-s=s.replace(a,'''            n_();
-            // Native activation/menu transitions may order out an accessory window
-            // while Electron still reports it visible. Restore its native ordering
-            // only for a selected account requested by the foreground host.
-            Z.showInactive();
-            try {Z.moveAbove(e.parentSourceId)}''',1)
+s=s.replace(a,'''if (process.env.HAITUO_VERIFY_RUNTIME === `1` && title === `新增账号`) process.once(`haituo-verify-select-add-account`, () => {finish(`signal`);menu.closePopup(Z)});''',1)
 p.write_text(s,encoding='utf-8')
 print('1.2.1: synchronized outgoing controls, raw top-button send, semantic-only send buttons and native Enter fallback')

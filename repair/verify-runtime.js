@@ -80,7 +80,8 @@ if (process.platform === `darwin` && process.env.HAITUO_VERIFY_RUNTIME === `1`) 
             check(typeof launch===`function`&&typeof sync===`function`,`Missing account handlers`);
             for(let account=0;account<2;account++){
                 const beforeIds=new Set(Yg.keys());
-                await mouseClick('.CaishengPlatformShell__add');if(account>0){await wait(120);await assertAbove(ids.at(-1),`add-menu-keeps-chat`)}await wait(500);
+                await mouseClick('.CaishengPlatformShell__add');await wait(120);if(account>0)await assertAbove(ids.at(-1),`add-menu-keeps-chat`);
+                check(process.emit('haituo-verify-select-add-account'),`Add menu was not ready for verification selection`);await wait(500);
                 deadline=Date.now()+90000;let id;
                 while(!(id=[...Yg.keys()].find(id=>!beforeIds.has(id)))&&Date.now()<deadline)await wait(250);
                 check(id,`Actual add-account UI did not launch Signal`);ids.push(id);

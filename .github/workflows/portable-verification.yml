@@ -1,0 +1,47 @@
+name: Verify portable delivered project
+on:
+  push:
+    branches: ['portable/verified-project']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: windows
+          - os: macos-15
+            target: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create the deliverable from canonical code
+        run: python portable/make-project.py
+      - name: Extract delivered ZIP outside checkout and build
+        shell: python
+        run: |
+          import os,pathlib,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'isolated-delivery'
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile('portable/out/Haituo-Windows-1.1.24-macOS-1.1.22-Portable-Project.zip') as z:z.extractall(root)
+          project=root/'Haituo-Portable-Project'
+          subprocess.run(['python',str(project/'scripts/build.py'),'--target','${{ matrix.target }}','--test'],cwd=project,check=True)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Haituo-Portable-${{ matrix.target }}
+          path: |
+            portable/out/*.zip
+            ${{ runner.temp }}/isolated-delivery/Haituo-Portable-Project/windows/out/*Setup.exe
+            ${{ runner.temp }}/isolated-delivery/Haituo-Portable-Project/windows/verification/**
+            ${{ runner.temp }}/isolated-delivery/Haituo-Portable-Project/macos/out/*.dmg
+            ${{ runner.temp }}/isolated-delivery/Haituo-Portable-Project/macos/verification/**

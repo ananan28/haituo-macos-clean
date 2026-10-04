@@ -3,6 +3,8 @@ async function haituoTestMessageScanning() {
     const requests=[], attempts=new Map(), delay=ms=>new Promise(r=>setTimeout(r,ms));
     const output=process.env.HAITUO_MESSAGE_TEST_RESULT;
     const check=(value,message)=>{if(!value)throw Error(message)};
+    let heldInputResolve=null,holdInputTranslation=false;
+    const waitHeldInput=async()=>{const deadline=Date.now()+5000;while(!heldInputResolve&&Date.now()<deadline)await delay(5);check(heldInputResolve,"Fixture translation request was not held")};
     let win,fixtureConfig={hideTranslationBox:true,blockChineseOutgoing:true};
     try {
         p.ipcMain.removeHandler('caisheng:get-translation-config');
@@ -12,6 +14,7 @@ async function haituoTestMessageScanning() {
         p.ipcMain.removeHandler(`caisheng:translate`);
         p.ipcMain.handle(`caisheng:translate`,async(event,value)=>{
             requests.push(value);
+            if(value.purpose==='input'&&holdInputTranslation)await new Promise(resolve=>heldInputResolve=resolve);
             if(value.purpose==='input')await delay(100);
             const count=(attempts.get(value.text)||0)+1;attempts.set(value.text,count);
             if(value.text==='Retry without page changes'&&count===1)throw Error('Fixture temporary service failure');
@@ -116,9 +119,15 @@ async function haituoTestMessageScanning() {
         await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='并发回车只发送一次';for(let i=0;i<3;i++)q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);await delay(1600);
         sent=await sendSnapshot();check(sent.sent.length===sentCount+1&&requests.length===beforeSend+1,'Concurrent Enter duplicated request/send: '+JSON.stringify(sent));sendingChecks.push({stage:'concurrent-enter-once',...sent});
         const beforeStale=sent.sent.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='翻译期间保留新输入';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));setTimeout(()=>document.getElementById('fixture-composer').textContent='用户新输入',30)})()`);await delay(1500);
+        holdInputTranslation=true;
+        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='翻译期间保留新输入';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);
+        await waitHeldInput();await win.webContents.executeJavaScript(`document.getElementById('fixture-composer').textContent='用户新输入'`);
+        holdInputTranslation=false;heldInputResolve();heldInputResolve=null;await delay(1500);
         sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.composer==='用户新输入'&&sent.quick==='翻译期间保留新输入','Stale translation overwrote/sent new input: '+JSON.stringify(sent));sendingChecks.push({stage:'stale-input-preserved',...sent});
-        await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='';const q=document.getElementById('haituo-whatsapp-quick-input');q.value='切换模式取消旧发送';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));setTimeout(()=>document.querySelector('[data-haituo-block-chinese]').click(),30)})()`);await delay(1500);
+        holdInputTranslation=true;
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='';const q=document.getElementById('haituo-whatsapp-quick-input');q.value='切换模式取消旧发送';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);
+        await waitHeldInput();await win.webContents.executeJavaScript(`document.querySelector('[data-haituo-block-chinese]').click()`);
+        holdInputTranslation=false;heldInputResolve();heldInputResolve=null;await delay(1500);
         sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.quick==='切换模式取消旧发送'&&sent.composer==='','Outgoing mode changed but old translation sent: '+JSON.stringify(sent));sendingChecks.push({stage:'mode-change-cancels-old-send',...sent});
         (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.quit();
     }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}

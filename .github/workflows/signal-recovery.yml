@@ -1,0 +1,42 @@
+name: Verify Signal recovery on macOS
+on:
+  push:
+    branches: ['fix/signal-recovery-1.2.2']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Recovery queue regression tests
+        run: node --test signal-recovery/recovery-guard.test.cjs
+      - name: Restore and patch complete delivered project
+        run: python3 portable/make-project.py
+      - name: Build and verify macOS application
+        run: |
+          python3 - <<'PY'
+          import pathlib,zipfile,subprocess,os
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'signal-recovery'
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile('portable/out/Haituo-Windows-1.2.2-macOS-1.2.2-Portable-Project.zip') as z:z.extractall(root)
+          project=root/'Haituo-Portable-Project'
+          subprocess.run(['node','--check',str(project/'src/app/bundles/preload/main.js')],check=True)
+          subprocess.run(['python3','scripts/build.py','--target','macos','--test'],cwd=project,check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Haituo-1.2.2-macOS-recovery
+          retention-days: 7
+          path: |
+            portable/out/*.zip
+            ${{ runner.temp }}/signal-recovery/Haituo-Portable-Project/macos/out/*.dmg
+            ${{ runner.temp }}/signal-recovery/Haituo-Portable-Project/macos/verification/**

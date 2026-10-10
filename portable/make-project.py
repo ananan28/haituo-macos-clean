@@ -19,13 +19,18 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     project=pathlib.Path(temp)/'Haituo-Portable-Project'
     shutil.copytree(ROOT/'portable/template',project)
     shutil.copytree(stage/'macos/staging/app',project/'src/app',symlinks=True)
+    cfgpath=project/'project.json'
+    cfg=json.loads(cfgpath.read_text());cfg['versions']={'windows':'1.2.2','macos':'1.2.2'}
+    cfgpath.write_text(json.dumps(cfg,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    labels=project/'src/app/bundles/preload/main.js'
+    labels.write_text(labels.read_text().replace('海拓 1.2.1','海拓 1.2.2').replace('当前版本 1.2.1','当前版本 1.2.2'),encoding='utf-8')
     for file in project.rglob('*'):
         if file.is_file():
             data=file.read_bytes()
             if b'\x00' not in data:
                 try: text=data.decode('utf-8')
                 except UnicodeDecodeError: continue
-                file.write_bytes(text.replace('\r\n','\n').replace('1.2.1','1.2.2').encode('utf-8'))
+                file.write_bytes(text.replace('\r\n','\n').encode('utf-8'))
     hashes={p.relative_to(project).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob('*')) if p.is_file()}
     (project/'FILE-SHA256.json').write_text(json.dumps(hashes,ensure_ascii=False,indent=2),encoding='utf-8')
     dest=OUT/'Haituo-Windows-1.2.2-macOS-1.2.2-Portable-Project.zip'

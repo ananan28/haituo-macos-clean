@@ -75,11 +75,12 @@ def prepare(target):
     return app, tools
 
 def windows(app, tools):
+    run([sys.executable,'scripts/prepare-helper.py'])
     builder = {
         'appId':'com.haituo.desktop','productName':'海拓',
         'directories':{'app':str(app),'output':'windows/out'},
         'electronVersion':CFG['tools']['electron'],'npmRebuild':False,
-        'asar':True,'asarUnpack':['**/*.node','**/*.dll'],
+        'asar':True,'asarUnpack':['**/*.node','**/*.dll','native/*.exe'],
         'win':{'target':[{'target':'nsis','arch':['x64']}],
                'icon':str(app/'build/icons/win/icon.ico'),'signAndEditExecutable':False},
         'nsis':{'oneClick':False,'perMachine':False,'allowToChangeInstallationDirectory':True,

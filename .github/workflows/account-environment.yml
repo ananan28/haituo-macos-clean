@@ -2,6 +2,9 @@ name: Build account environment 1.2.3
 on:
   push:
     branches: ['fix/account-environment-1.2.3']
+concurrency:
+  group: account-environment-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 env:
@@ -46,7 +49,9 @@ jobs:
           env={**os.environ,'HAITUO_ENVIRONMENT_TEST':'1','HAITUO_ENVIRONMENT_REPORT':str(report)}
           env.pop('ELECTRON_RUN_AS_NODE',None)
           with tempfile.TemporaryDirectory(prefix='haituo-environment-') as profile:
-              subprocess.run([str(exe),'--user-data-dir='+profile],env=env,check=True,timeout=120)
+              probe=subprocess.run([str(exe),'--user-data-dir='+profile],env=env,timeout=120)
+              if report.exists():print(report.read_text(encoding='utf-8'))
+              probe.check_returncode()
           result=json.loads(report.read_text(encoding='utf-8'));assert result['ok'],result
           print(json.dumps(result))
       - uses: actions/upload-artifact@v4

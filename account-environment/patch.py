@@ -28,10 +28,13 @@ change('    if (e.type === `caisheng-edit-account-label-in-page`) {','    if (e.
 change('    }), r.on(`message`, e => {','    }), r.on(`message`, e => {\n        if (Yg.get(t) === r && e?.type === `haituo-captcha-pending`) { haituoPendingCaptchaAccounts.set(t,e.seq); return; }')
 change('        caishengCancelChildLabelRequests(r), Yg.get(t) === r &&','        haituoPendingCaptchaAccounts.delete(t);\n        caishengCancelChildLabelRequests(r), Yg.get(t) === r &&')
 change('e.key === `captcha` ? (p_.handleCaptcha(e.args.captchaId),','e.key === `captcha` ? (haituoRouteCaptchaToAccount(e.args.captchaId),')
+change('}), tm(), p.app.isDefaultProtocolClient(`sgnl`) ?', '}), tm(), $u === `signal-main` && (p.app.isDefaultProtocolClient(`sgnl`) ?')
+change('p.app.setAsDefaultProtocolClient(`signalcaptcha`)), p.ipcMain.handle', 'p.app.setAsDefaultProtocolClient(`signalcaptcha`))), p.ipcMain.handle')
+
 
 # Session isolation is already keyed by partition. Use the durable account UUID
 # as a stable privacy seed; never rotate it on launches or reloads.
-change('workspaceId && (HaituoWorkspaceBySession.set', 'a === `web.whatsapp.com` && workspaceId && (t.additionalArguments = [ ...(t.additionalArguments ?? []), `--haituo-canvas-profile=${(0, f.createHash)(`sha256`).update(`haituo-canvas-v1:` + workspaceId).digest(`hex`)}` ]);\n        workspaceId && (HaituoWorkspaceBySession.set')
+change('workspaceId && (HaituoWorkspaceBySession.set', 'a === `web.whatsapp.com` && workspaceId && (t.additionalArguments = [ ...(t.additionalArguments ?? []), `--haituo-canvas-profile=${require(`node:crypto`).createHash(`sha256`).update(`haituo-canvas-v1:` + workspaceId).digest(`hex`)}` ]);\n        workspaceId && (HaituoWorkspaceBySession.set')
 s+='\n'+Path('account-environment/test-hook.js').read_text()
 p.write_text(s)
 p=root/'js/caisheng-webview-preload.js';s=p.read_text()

@@ -78,6 +78,7 @@ def windows(app, tools):
     run([sys.executable,'scripts/prepare-helper.py'])
     builder = {
         'appId':'com.haituo.desktop','productName':'海拓',
+        'protocols':[{'name':'Haituo Signal verification','schemes':['sgnl','signalcaptcha']}],
         'directories':{'app':str(app),'output':'windows/out'},
         'electronVersion':CFG['tools']['electron'],'npmRebuild':False,
         'asar':True,'asarUnpack':['**/*.node','**/*.dll','native/*.exe'],
@@ -113,6 +114,7 @@ def macos(app, tools):
     bundle = ROOT/'macos/out/海拓-darwin-arm64/海拓.app'
     p = bundle/'Contents/Info.plist'
     info = plistlib.loads(p.read_bytes());info['LSUIElement']=True;info.pop('LSBackgroundOnly',None)
+    info['CFBundleURLTypes']=[{'CFBundleURLName':'Haituo Signal verification','CFBundleURLSchemes':['sgnl','signalcaptcha']}]
     p.write_bytes(plistlib.dumps(info))
     run(['codesign','--force','--deep','--sign','-','--entitlements','macos/entitlements.plist',bundle])
     run(['codesign','--verify','--deep','--strict',bundle])

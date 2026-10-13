@@ -1,7 +1,7 @@
 // Apply only to WhatsApp. The stable account seed never enters HTTP headers.
 // This partitions Canvas text readback; it does not spoof OS/GPU or change audio.
 const haituoProfileArg = process.argv.find(value => /^--haituo-canvas-profile=[a-f0-9]{64}$/.test(value));
-if (haituoProfileArg && location.hostname === 'web.whatsapp.com') {
+if (haituoProfileArg && (location.hostname === 'web.whatsapp.com' || (process.argv.includes('--haituo-environment-fixture') && location.protocol === 'file:'))) {
     const profileSeed = haituoProfileArg.split('=')[1];
     require('electron').contextBridge.executeInMainWorld({
         func: function(seed) {

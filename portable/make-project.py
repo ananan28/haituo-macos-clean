@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     runpy.run_path(str(stage/'signal-recovery/patch.py'),run_name='__main__')
     shutil.copytree(ROOT/'account-environment',stage/'account-environment')
     runpy.run_path(str(stage/'account-environment/patch.py'),run_name='__main__')
+    shutil.copytree(ROOT/'scroll-stability',stage/'scroll-stability')
+    runpy.run_path(str(stage/'scroll-stability/patch.py'),run_name='__main__')
     project=pathlib.Path(temp)/'Haituo-Portable-Project'
     shutil.copytree(ROOT/'portable/template',project)
     shutil.copytree(stage/'macos/staging/app',project/'src/app',symlinks=True)
@@ -25,10 +27,10 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
     shutil.copy2(ROOT/'account-environment/WindowHelper.cs',project/'src/app/native/WindowHelper.cs')
     shutil.copy2(ROOT/'account-environment/prepare-helper.py',project/'scripts/prepare-helper.py')
     cfgpath=project/'project.json'
-    cfg=json.loads(cfgpath.read_text());cfg['versions']={'windows':'1.2.3','macos':'1.2.3'}
+    cfg=json.loads(cfgpath.read_text());cfg['versions']={'windows':'1.2.4','macos':'1.2.4'}
     cfgpath.write_text(json.dumps(cfg,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     labels=project/'src/app/bundles/preload/main.js'
-    labels.write_text(labels.read_text().replace('海拓 1.2.1','海拓 1.2.3').replace('当前版本 1.2.1','当前版本 1.2.3'),encoding='utf-8')
+    labels.write_text(labels.read_text().replace('海拓 1.2.1','海拓 1.2.4').replace('当前版本 1.2.1','当前版本 1.2.4'),encoding='utf-8')
     for file in project.rglob('*'):
         if file.is_file():
             data=file.read_bytes()
@@ -38,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='haituo-project-') as temp:
                 file.write_bytes(text.replace('\r\n','\n').encode('utf-8'))
     hashes={p.relative_to(project).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob('*')) if p.is_file()}
     (project/'FILE-SHA256.json').write_text(json.dumps(hashes,ensure_ascii=False,indent=2),encoding='utf-8')
-    dest=OUT/'Haituo-Windows-1.2.3-macOS-1.2.3-Portable-Project.zip'
+    dest=OUT/'Haituo-Windows-1.2.4-macOS-1.2.4-Portable-Project.zip'
     with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
         for p in sorted(project.rglob('*')):
             if p.is_file():

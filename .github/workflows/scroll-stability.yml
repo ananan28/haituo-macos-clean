@@ -1,0 +1,78 @@
+name: Build translation scroll stability 1.2.4
+on:
+  push:
+    branches: ['fix/scroll-stability-1.2.4']
+concurrency:
+  group: scroll-stability-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: 1
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: windows
+          - os: macos-15
+            target: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node --test account-environment/captcha-router.test.cjs signal-recovery/recovery-guard.test.cjs
+      - run: python portable/make-project.py
+      - name: Build and regression-test delivered project
+        shell: python
+        run: |
+          import pathlib,zipfile,subprocess,os,json,tempfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'account-environment'
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile('portable/out/Haituo-Windows-1.2.4-macOS-1.2.4-Portable-Project.zip') as z:z.extractall(root)
+          project=root/'Haituo-Portable-Project'
+          main=(project/'src/app/bundles/main.js').read_text(encoding='utf-8')
+          assert 'powershell.exe' not in main.lower()
+          for name in ['bundles/main.js','bundles/preload/main.js','js/caisheng-webview-preload.js']:
+              subprocess.run(['node','--check',str(project/'src/app'/name)],check=True)
+          subprocess.run(['python','scripts/build.py','--target','${{ matrix.target }}','--test'],cwd=project,check=True)
+          exe=project/('windows/out/win-unpacked/海拓.exe' if '${{ matrix.target }}'=='windows' else 'macos/out/海拓-darwin-arm64/海拓.app/Contents/MacOS/海拓')
+          report=root/'environment.json'
+          env={**os.environ,'HAITUO_ENVIRONMENT_TEST':'1','HAITUO_ENVIRONMENT_REPORT':str(report)}
+          env.pop('ELECTRON_RUN_AS_NODE',None)
+          with tempfile.TemporaryDirectory(prefix='haituo-environment-') as profile:
+              probe=subprocess.run([str(exe),'--user-data-dir='+profile],env=env,timeout=120)
+              if report.exists():print(report.read_text(encoding='utf-8'))
+              probe.check_returncode()
+          result=json.loads(report.read_text(encoding='utf-8'));assert result['ok'],result
+          print(json.dumps(result))
+          env.pop('HAITUO_ENVIRONMENT_TEST',None)
+          scrollreport=root/'scroll.json'
+          env.update(HAITUO_SCROLL_TEST='1',HAITUO_SCROLL_REPORT=str(scrollreport))
+          with tempfile.TemporaryDirectory(prefix='haituo-scroll-') as profile:
+              probe=subprocess.run([str(exe),'--user-data-dir='+profile],env=env,timeout=120)
+              if scrollreport.exists():print(scrollreport.read_text(encoding='utf-8'))
+              probe.check_returncode()
+          result=json.loads(scrollreport.read_text(encoding='utf-8'));assert result['ok'],result
+          print(json.dumps(result))
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Haituo-1.2.4-${{ matrix.target }}-installer-source-reports
+          retention-days: 7
+          path: |
+            portable/out/*.zip
+            ${{ runner.temp }}/account-environment/environment.json
+            ${{ runner.temp }}/account-environment/scroll.json
+            ${{ runner.temp }}/account-environment/Haituo-Portable-Project/macos/out/*.dmg
+            ${{ runner.temp }}/account-environment/Haituo-Portable-Project/windows/out/*.exe
+            ${{ runner.temp }}/account-environment/Haituo-Portable-Project/macos/verification/**
+            ${{ runner.temp }}/account-environment/Haituo-Portable-Project/windows/verification/**

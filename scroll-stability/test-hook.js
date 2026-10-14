@@ -14,18 +14,18 @@ if(process.env.HAITUO_SCROLL_TEST==='1' && $u==='signal-main') {
                 const reset=()=>{root.innerHTML='';for(let i=0;i<30;i++){const row=document.createElement('div');row.className='module-message';row.id='row-'+i;row.style.height='48px';row.textContent='message '+i;root.append(row)}root.scrollTop=0;sidebar.scrollTop=35};
                 reset();root.scrollTop=510;const anchor=document.getElementById('row-10'),before=anchor.getBoundingClientRect().top;
                 haituoKeepTranslationPosition(document.getElementById('row-0'),()=>{for(let i=0;i<10;i++)document.getElementById('row-'+i).style.height='85px'});
-                assert(Math.abs(anchor.getBoundingClientRect().top-before)<1,'history reading position moved');checks.push('history-anchor');
+                assert(Math.abs(anchor.getBoundingClientRect().top-before)<1,'history reading position moved');await new Promise(requestAnimationFrame);assert(Math.abs(anchor.getBoundingClientRect().top-before)<1,'history anchor moved on paint');checks.push('history-anchor');
                 assert(sidebar.scrollTop===35,'unrelated sidebar scrolled');checks.push('scoped-container');
                 reset();root.scrollTop=root.scrollHeight-root.clientHeight;
                 haituoKeepTranslationPosition(document.getElementById('row-0'),()=>{for(const row of root.children)row.style.height='90px'});
-                assert(Math.abs(root.scrollHeight-root.clientHeight-root.scrollTop)<1,'bottom position moved');checks.push('bottom-pin');
-                reset();root.scrollTop=600;let moved=false;const updates=[];
+                assert(Math.abs(root.scrollHeight-root.clientHeight-root.scrollTop)<1,'bottom position moved');await new Promise(requestAnimationFrame);assert(Math.abs(root.scrollHeight-root.clientHeight-root.scrollTop)<1,'bottom moved on paint');checks.push('bottom-pin');
+                reset();root.scrollTop=600;const fixed=document.getElementById('row-12'),fixedTop=fixed.getBoundingClientRect().top;const updates=[];
                 for(let frame=0;frame<8;frame++){
                     const row=document.elementFromPoint(root.getBoundingClientRect().left+20,root.getBoundingClientRect().top+20)?.closest('.module-message');
                     assert(row,'missing anchor');const top=row.getBoundingClientRect().top;
                     haituoKeepTranslationPosition(root.firstChild,()=>root.children[frame].style.height='100px');
                     updates.push(Math.abs(row.getBoundingClientRect().top-top));
-                    await new Promise(requestAnimationFrame);
+                    await new Promise(requestAnimationFrame);assert(Math.abs(fixed.getBoundingClientRect().top-fixedTop)<1,'cache restoration jittered between paints');
                 }
                 assert(updates.every(delta=>delta<1),'successive frames jittered');checks.push('successive-cache-batches');
                 // After manual scrolling, take a fresh anchor rather than restoring an old snapshot.

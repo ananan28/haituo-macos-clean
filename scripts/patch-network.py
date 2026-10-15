@@ -13,6 +13,6 @@ assert s.count(old)==1
 s=s.replace(old,'"User-Agent": n.Ot(re.signalProtocolVersion)',1)
 p.write_text(s,encoding='utf-8')
 p=app/'bundles/preload/main.js';s=p.read_text(encoding='utf-8')
-s=s.replace('当前版本 1.1.22','当前版本 1.2.7').replace('海拓 1.1.22','海拓 1.2.7')
+s=s.replace('当前版本 1.1.22','当前版本 1.3.3').replace('海拓 1.1.22','海拓 1.3.3')
 p.write_text(s,encoding='utf-8')
-print('Signal protocol version preserved independently of Haituo 1.2.7 release version')
+print('Signal protocol version preserved independently of Haituo 1.3.3 release version')

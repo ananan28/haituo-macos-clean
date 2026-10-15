@@ -2,7 +2,7 @@ from pathlib import Path
 import json,runpy
 app=Path('macos/staging/app')
 p=app/'package.json';pkg=json.loads(p.read_text(encoding='utf-8'))
-pkg['signalProtocolVersion']=pkg['version'];pkg['version']='1.2.7'
+pkg['signalProtocolVersion']=pkg['version'];pkg['version']='1.3.3'
 p.write_text(json.dumps(pkg,ensure_ascii=False,indent=2),encoding='utf-8')
 runpy.run_path('scripts/patch-network.py',run_name='__main__')
 runpy.run_path('scripts/patch-startup.py',run_name='__main__')

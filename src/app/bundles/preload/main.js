@@ -209223,11 +209223,19 @@ function haituoCachedSignalTranslation(text) {
                 if (event.key !== `Enter` || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing || event.keyCode === 229 || l) return;
                 const target = event.target;
                 if (!(target instanceof Element) || target.closest(`.HaituoQuickTranslator`) || !target.closest(`.CompositionArea`)) return;
+                if (a.blockChineseOutgoing === !1) return;
                 if (!/[\u3400-\u9fff]/u.test(haituoMainComposerText())) return;
                 event.preventDefault(), event.stopPropagation(), event.stopImmediatePropagation(), void g(!1);
             };
             return document.addEventListener(`keydown`, onEnter, !0), () => document.removeEventListener(`keydown`, onEnter, !0);
-        }, [ t, l, g, haituoMainComposerText ]);
+        }, [ t, l, g, haituoMainComposerText, a ]);
+        (0, l6.useEffect)(() => {
+            const esc = e => {
+                if (e.key !== `Escape`) return;
+                c(!1);
+            };
+            return document.addEventListener(`keydown`, esc), () => document.removeEventListener(`keydown`, esc);
+        }, []);
         return a.hideTranslationBox ? (0, u6.jsx)(`button`, {
             className: `CaishengComposerTranslator__restore`,
             type: `button`,
@@ -230184,6 +230192,12 @@ function haituoCachedSignalTranslation(text) {
             let e = r.find(e => e.id === o);
             e?.platformId === `whatsapp` && qSetLoaded(t => t.includes(o) ? t : [ o, ...t ]);
         }, [ o, r ]), (0, D9.useEffect)(() => {
+            const esc = e => {
+                if (e.key !== `Escape`) return;
+                d(!1), l(!1);
+            };
+            return document.addEventListener(`keydown`, esc), () => document.removeEventListener(`keydown`, esc);
+        }, []), (0, D9.useEffect)(() => {
             if (window.SignalContext.OS.platform === `darwin`) return;
             let e = r.filter(e => e.platformId === `whatsapp` && bCr(e.platformId, t)), n = e.find(e => qLoaded.includes(e.id) && !qReady.includes(e.id));
             if (n) return;
@@ -230389,7 +230403,7 @@ function haituoCachedSignalTranslation(text) {
                 children: [ (0, O9.jsxs)(`div`, {
                     className: `HaituoBrand`,
                     children: [ (0, O9.jsx)(`img`, { className: `HaituoBrand__coin`, src: `images/haituo-coin.png`, alt: `海拓` }), (0, O9.jsxs)(`span`, {
-                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: `VIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.2.7` }) ]
+                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.3` }) ]
                     }) ]
                 }), (0, O9.jsxs)(`div`, {
                     className: `HaituoPlatformFilters`,
@@ -230536,7 +230550,7 @@ function haituoCachedSignalTranslation(text) {
                         children: `›`
                     }), (0, O9.jsxs)(`div`, {
                         style: { padding: `9px 11px`, borderRadius: `8px`, background: `#1b160d`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `13px`, lineHeight: `1.45` },
-                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.2.7` }) ]
+                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.3.3` }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`input`, {
                             type: `checkbox`, checked: !!m.hideTranslationBox,

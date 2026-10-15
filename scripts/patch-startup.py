@@ -25,11 +25,11 @@ s=s.replace(anchor,'''    async function hvn() {
         if (await u.ipcRenderer.invoke(\x60haituo:is-window-visible\x60)) return;
         await wvn;
     }''',1)
-s=s.replace('当前版本 1.1.23','当前版本 1.2.7').replace('海拓 1.1.23','海拓 1.2.7')
+s=s.replace('当前版本 1.1.23','当前版本 1.3.3').replace('海拓 1.1.23','海拓 1.3.3')
 p.write_text(s,encoding='utf-8')
 p=app/'package.json'
 pkg=json.loads(p.read_text(encoding='utf-8'))
 assert pkg['signalProtocolVersion']=='8.29.0-alpha.1'
-pkg['version']='1.2.7'
+pkg['version']='1.3.3'
 p.write_text(json.dumps(pkg,ensure_ascii=False,indent=2),encoding='utf-8')
-print('Repaired window visibility handshake and startup replay for Windows 1.2.7')
+print('Repaired window visibility handshake and startup replay for Windows 1.3.3')

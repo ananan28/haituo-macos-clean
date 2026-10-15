@@ -758,7 +758,7 @@ function toggleApiSettings() {
         return wrap.append(select), wrap;
     };
     const version = document.createElement("div");
-    version.innerHTML = "<strong>海拓 1.2.7 翻译设置</strong>", Object.assign(version.style, { padding: "8px 10px", borderRadius: "7px", fontSize: "13px", lineHeight: "1.45" }), settingsPanel.append(version);
+    version.innerHTML = "<strong>海拓 1.3.3 翻译设置</strong>", Object.assign(version.style, { padding: "8px 10px", borderRadius: "7px", fontSize: "13px", lineHeight: "1.45" }), settingsPanel.append(version);
     settingsPanel.append(makeProviderSelect("输入翻译服务", "inputTranslationProvider"), makeProviderSelect("聊天翻译服务", "chatTranslationProvider"), makeProviderSelect("语音转文字服务", "voiceTranscriptionProvider", [ [ "groq", "Groq Whisper（默认）" ], [ "openai", "OpenAI Whisper" ], [ "keppl", "Keppl Whisper" ] ]), makeInput("OpenAI API Key", "apiKey", "password"), makeInput("DeepL API Key", "deepLApiKey", "password"), makeInput("Groq API Key", "groqApiKey", "password"), makeInput("Keppl 音转文 API Key", "kepplApiKey", "password"), makeInput("Keppl 音转文地址", "kepplEndpoint"), makeInput("Keppl 音转文模型", "kepplModel"), makeInput("API 地址", "endpoint"), makeInput("模型", "model"), makeInput("区域", "region")), 
     document.body.append(settingsPanel), applyTranslatorTheme();
     const drawerButton = document.createElement("button"), drawer = document.createElement("div"), rows = document.createElement("div"), add = document.createElement("button");
@@ -1117,11 +1117,13 @@ function watchNativeSendAndClearQuick(composerHint) {
 }
 
 function blockChinese(e, t) {
-    if (!settings.blockChineseOutgoing || !t || !HAN.test(read(t))) return !1;
-    if (settings.blockChineseOutgoing) return e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), toast("已禁止发送中文，请先翻译。", !0), !0;
-    if (Date.now() < chineseConfirmBypassUntil) return !1;
-    if (window.confirm("检测到消息中包含中文，确定直接发送吗？")) return chineseConfirmBypassUntil = Date.now() + 1800, !1;
-    return e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), !0;
+    if (!t || !HAN.test(read(t))) return !1;
+    if (!settings.blockChineseOutgoing) {
+        if (Date.now() < chineseConfirmBypassUntil) return !1;
+        if (window.confirm("检测到消息中包含中文，确定直接发送吗？")) return chineseConfirmBypassUntil = Date.now() + 1800, !1;
+        return e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), !0;
+    }
+    return e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), toast("已禁止发送中文，请先翻译。", !0), !0;
 }
 
 document.addEventListener("beforeinput", e => {
@@ -1153,6 +1155,10 @@ document.addEventListener("beforeinput", e => {
         if (n) return;
         hideBackTranslation();
         if (t && HAN.test(read(t))) {
+            if (settings.blockChineseOutgoing) {
+                e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation();
+                return void run(!1);
+            }
             return void blockChinese(e, t);
         }
         t && read(t).trim() && watchNativeSendAndClearQuick(t);

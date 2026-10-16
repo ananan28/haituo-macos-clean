@@ -21713,8 +21713,8 @@ http://jedwatson.github.io/classnames
         const activeComposer = window.__haituoSignalComposerElement, composers = [ ...document.querySelectorAll('[contenteditable="true"]') ].filter(e => {
             const r = e.getBoundingClientRect();
             return r.width > 180 && r.height > 20 && r.bottom > innerHeight / 2;
-        }), composer = activeComposer?.isConnected ? activeComposer : composers.at(-1), rect = composer?.getBoundingClientRect(), left = Math.max(12, rect?.left ?? 24), width = Math.max(260, Math.min(620, rect?.width ?? 440, innerWidth - left - 12));
-        preview.style.left = `${left}px`, preview.style.right = `auto`, preview.style.width = `${width}px`, preview.style.bottom = `${Math.max(68, innerHeight - (rect?.top ?? innerHeight - 72) + 7)}px`, preview.style.display = `block`, preview.style.borderColor = isError ? `#ef4444` : `#f59e0b`, preview.textContent = text, clearTimeout(window.__haituoSignalBackTimer), window.__haituoSignalBackTimer = isError ? setTimeout(() => preview?.remove(), 3500) : void 0;
+        }), composer = activeComposer?.isConnected ? activeComposer : composers.at(-1), rect = composer?.getBoundingClientRect(), left = Math.max(12, rect?.left ?? 22), right = Math.max(12, innerWidth - (rect?.right ?? innerWidth - 22));
+        preview.style.left = `${left}px`, preview.style.right = `${right}px`, preview.style.width = `auto`, preview.style.minHeight = `40px`, preview.style.bottom = `${Math.max(68, innerHeight - (rect?.top ?? innerHeight - 72) + 7)}px`, preview.style.display = `block`, preview.style.borderColor = isError ? `#ef4444` : `#f59e0b`, preview.textContent = text, clearTimeout(window.__haituoSignalBackTimer), window.__haituoSignalBackTimer = isError ? setTimeout(() => preview?.remove(), 3500) : void 0;
     }
     window.__haituoShowSignalTranslation = HaituoShowSignalTranslation;
     window.__haituoHideSignalTranslation = () => {
@@ -209149,13 +209149,13 @@ function haituoCachedSignalTranslation(text) {
                 if (e) {
                     r(o), haituoSetQuickText(``), m(!1), y(``);
                 } else {
-                    n(o), m(!0), y(`已翻译，正在后台回译…`), S_(o, {
+                    n(o), m(!0), window.__haituoSignalExpectedText = o.trim(), window.__haituoShowSignalTranslation?.(`正在回译确认…`), S_(o, {
                         ...a,
                         targetLanguage: `zh-CN`
                     }, `chat`).then(e => {
-                        y(`回译：${e}`), setTimeout(() => y(``), 8e3);
+                        window.__haituoSignalExpectedText === o.trim() ? window.__haituoShowSignalTranslation?.(`回译：${e}`) : window.__haituoHideSignalTranslation?.();
                     }).catch(() => {
-                        y(`回译暂时不可用`), setTimeout(() => y(``), 4e3);
+                        window.__haituoSignalExpectedText === o.trim() ? window.__haituoShowSignalTranslation?.(`回译暂时不可用`, !0) : window.__haituoHideSignalTranslation?.();
                     });
                 }
             } catch (e) {
@@ -230403,7 +230403,7 @@ function haituoCachedSignalTranslation(text) {
                 children: [ (0, O9.jsxs)(`div`, {
                     className: `HaituoBrand`,
                     children: [ (0, O9.jsx)(`img`, { className: `HaituoBrand__coin`, src: `images/haituo-coin.png`, alt: `海拓` }), (0, O9.jsxs)(`span`, {
-                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.3` }) ]
+                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.5` }) ]
                     }) ]
                 }), (0, O9.jsxs)(`div`, {
                     className: `HaituoPlatformFilters`,
@@ -230550,7 +230550,7 @@ function haituoCachedSignalTranslation(text) {
                         children: `›`
                     }), (0, O9.jsxs)(`div`, {
                         style: { padding: `9px 11px`, borderRadius: `8px`, background: `#1b160d`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `13px`, lineHeight: `1.45` },
-                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.3.3` }) ]
+                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.3.5` }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`input`, {
                             type: `checkbox`, checked: !!m.hideTranslationBox,

@@ -30701,10 +30701,16 @@ async function haituoApplyNativeSignalAppearance(win, cfg) {
     } catch (error) { X.warn(`Native appearance could not be applied: ${error?.message}`); }
 }
 
+let haituoMessageFixtureStarted = !1;
 async function haituoTestMessageScanning() {
-    if ($u !== `signal-main` || process.env.HAITUO_MESSAGE_TEST !== `1`) return;
+    if ($u !== `signal-main` || process.env.HAITUO_MESSAGE_TEST !== `1` || haituoMessageFixtureStarted) return;
+    haituoMessageFixtureStarted = !0;
     const requests=[], attempts=new Map(), delay=ms=>new Promise(r=>setTimeout(r,ms));
     const output=process.env.HAITUO_MESSAGE_TEST_RESULT;
+    let fixtureStage='starting';
+    const mark=stage=>{fixtureStage=stage;(0,m.writeFileSync)(output+'.progress.json',JSON.stringify({stage,at:new Date().toISOString()}));};
+    mark('starting');
+    const watchdog=setTimeout(()=>{(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:'Message fixture timed out',stage:fixtureStage}));p.app.exit(1)},180000);
     const check=(value,message)=>{if(!value)throw Error(message)};
     let heldInputResolve=null,holdInputTranslation=false;
     const waitHeldInput=async()=>{const deadline=Date.now()+5000;while(!heldInputResolve&&Date.now()<deadline)await delay(5);check(heldInputResolve,"Fixture translation request was not held")};
@@ -30739,7 +30745,9 @@ async function haituoTestMessageScanning() {
         win.webContents.session.setUserAgent('Mozilla/5.0 HaiTuo-Test');
         win.webContents.setUserAgent('Mozilla/5.0 HaiTuo-Test');
         await win.webContents.session.protocol.handle('https',request => new Response(html,{headers:{'content-type':'text/html; charset=utf-8'}}));
+        mark('loading-fixture');
         await win.loadURL('https://web.whatsapp.com/haituo-message-fixture');
+        mark('scanning-messages');
         await win.webContents.executeJavaScript(`window.fixtureNoise=setInterval(()=>document.getElementById('noise').textContent=String(Date.now()),100);setTimeout(()=>{const row=document.createElement('div');row.className='message-in';row.id='late';row.innerHTML='<span class="selectable-text">New message during continuous updates</span>';document.getElementById('main').prepend(row);row.scrollIntoView({block:'center'})},2500)`);
         await delay(13000);
         const result=await win.webContents.executeJavaScript(`(()=>{clearInterval(window.fixtureNoise);return ['quoted','legacy','mixed','modern','paragraph','retry','late','wds'].map(id=>({id,count:document.getElementById(id).querySelectorAll('.haituo-wa-message-translation').length,text:document.getElementById(id).querySelector('.haituo-wa-message-translation span')?.textContent,error:!!document.getElementById(id).querySelector('.haituo-wa-translation-error'),top:document.getElementById(id).getBoundingClientRect().top,viewport:innerHeight}))})()`);
@@ -30751,8 +30759,10 @@ async function haituoTestMessageScanning() {
         check(attempts.get('Retry without page changes')===2,'Failed message did not retry independently');
         check(requests.some(row=>row.text==='First line 123\n\nSecond line 456 with https://example.com'),'Paragraph source changed');
         const before=requests.length;await delay(4500);check(requests.length===before,'Repeated scan translated completed messages again');
+        mark('long-message-layouts');
         const longLayouts=[];
         for (const mode of ['fixed-height','line-clamp','inline-wrapper','expanded','outer-fixed-height']) {
+            mark('layout-'+mode);
             await win.webContents.executeJavaScript(`(()=>{
                 const main=document.getElementById('main');main.innerHTML='';main.style.zoom='1';
                 const row=document.createElement('div');row.className='message-in';row.id='long';row.style.cssText='width:300px;';
@@ -30832,8 +30842,8 @@ async function haituoTestMessageScanning() {
         await waitHeldInput();await win.webContents.executeJavaScript(`document.querySelector('[data-haituo-block-chinese]').click()`);
         holdInputTranslation=false;heldInputResolve();heldInputResolve=null;await delay(1500);
         sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.quick==='切换模式取消旧发送'&&sent.composer==='','Outgoing mode changed but old translation sent: '+JSON.stringify(sent));sendingChecks.push({stage:'mode-change-cancels-old-send',...sent});
-        (0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.quit();
-    }catch(error){(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),requests},null,2));win?.destroy();p.app.exit(1);}
+        clearTimeout(watchdog);mark('complete');(0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.exit(0);
+    }catch(error){clearTimeout(watchdog);(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),stage:fixtureStage,requests},null,2));win?.destroy();p.app.exit(1);}
 }
 
 function haituoLiveSignalInfo() {
@@ -31330,6 +31340,7 @@ if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TES
                     Z.show();
                     Z.webContents.send('activate');
                 });
+                if (process.env.HAITUO_MESSAGE_TEST === '1') setTimeout(haituoTestMessageScanning,1000);
                 return;
             }
             if (Date.now() < deadline) setTimeout(present, 100);

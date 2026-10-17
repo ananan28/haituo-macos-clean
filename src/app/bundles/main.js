@@ -31315,3 +31315,25 @@ if(process.env.HAITUO_SCROLL_TEST==='1' && $u==='signal-main') {
         }
     });
 }
+
+if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TEST === '1') && $u === 'signal-main') {
+    // Runtime fixtures launch the executable directly, without the user's Dock/taskbar activation.
+    // Present the root window before testing so the visibility-gated renderer can initialize.
+    p.app.whenReady().then(() => {
+        const deadline = Date.now() + 90000;
+        const present = () => {
+            if (Z && !Z.isDestroyed()) {
+                Z.show();
+                Z.webContents.send('activate');
+                Z.webContents.once('dom-ready', () => {
+                    if (!Z || Z.isDestroyed()) return;
+                    Z.show();
+                    Z.webContents.send('activate');
+                });
+                return;
+            }
+            if (Date.now() < deadline) setTimeout(present, 100);
+        };
+        present();
+    });
+}

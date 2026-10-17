@@ -30790,58 +30790,42 @@ async function haituoTestMessageScanning() {
             check(resized.translationTop>=resized.sourceBottom-1&&resized.bubbleBottom>=resized.translationBottom-1,'Resize overlapped: '+JSON.stringify(resized));
             longLayouts.push({mode,...layout,resized});
         }
-        await win.webContents.executeJavaScript(`(()=>{document.getElementById('main').innerHTML='';const footer=document.createElement('footer');footer.style.cssText='position:fixed;bottom:0;width:700px;height:100px';footer.innerHTML='<div id="fixture-composer" role="textbox" contenteditable="true" style="width:400px;height:40px"></div><button aria-label="Send" style="width:50px;height:35px">Send</button>';document.body.append(footer);window.nativeSent=[];window.confirmCalls=0;window.confirm=()=>{window.confirmCalls++;return false};const composer=document.getElementById('fixture-composer'),send=()=>{window.nativeSent.push(composer.textContent);composer.textContent='';composer.dispatchEvent(new Event('input',{bubbles:true}))};footer.querySelector('button').onclick=send;composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.defaultPrevented)send()});composer.focus();composer.dispatchEvent(new Event('focusin',{bubbles:true}));})()`);
-        const setBlock=async block=>{fixtureConfig={hideTranslationBox:false,blockChineseOutgoing:block};win.webContents.send('caisheng:translation-config-changed',fixtureConfig);await delay(300)};
-        const sendSnapshot=()=>win.webContents.executeJavaScript(`({sent:[...window.nativeSent],confirmCalls:window.confirmCalls,composer:document.getElementById('fixture-composer').textContent,quick:document.getElementById('haituo-whatsapp-quick-input')?.value})`);
+        mark('creating-composer');
+        let acceptChinese=false, confirmCount=0;
+        win.webContents.debugger.attach('1.3');
+        await win.webContents.debugger.sendCommand('Page.enable');
+        win.webContents.debugger.on('message',(_event,method,params)=>{
+            if(method!=='Page.javascriptDialogOpening')return;
+            confirmCount++;
+            win.webContents.debugger.sendCommand('Page.handleJavaScriptDialog',{accept:acceptChinese}).catch(error=>console.error('Fixture dialog handling failed',error));
+        });
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('main').innerHTML='';const footer=document.createElement('footer');footer.style.cssText='position:fixed;bottom:0;width:700px;height:100px';footer.innerHTML='<div id="fixture-composer" role="textbox" contenteditable="true" style="width:400px;height:40px"></div><button aria-label="Send" style="width:50px;height:35px">Send</button>';document.body.append(footer);window.nativeSent=[];const composer=document.getElementById('fixture-composer'),send=()=>{window.nativeSent.push(composer.textContent);composer.textContent='';composer.dispatchEvent(new Event('input',{bubbles:true}))};footer.querySelector('button').onclick=send;composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.defaultPrevented)send()});composer.focus();composer.dispatchEvent(new Event('focusin',{bubbles:true}));})()`);
+        const setBlock=async(block,hidden=false)=>{fixtureConfig={hideTranslationBox:hidden,blockChineseOutgoing:block};win.webContents.send('caisheng:translation-config-changed',fixtureConfig);await delay(400)};
+        const sendSnapshot=()=>win.webContents.executeJavaScript(`({sent:[...window.nativeSent],composer:document.getElementById('fixture-composer').textContent,quick:document.getElementById('haituo-whatsapp-quick-input')?.value,preview:document.getElementById('haituo-backtranslation-preview')?.textContent||''})`);
         const sendingChecks=[];
-        await setBlock(false);let beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('fixture-composer');c.textContent='直接发送中文按钮';document.querySelector('footer button').click();c.textContent='直接发送中文回车';c.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
-        let sent=await sendSnapshot();check(sent.sent.join('|')==='直接发送中文按钮|直接发送中文回车'&&sent.confirmCalls===0&&requests.length===beforeSend,'OFF native send changed original: '+JSON.stringify(sent));sendingChecks.push({stage:'off-native',...sent});
-        await setBlock(true);
-        await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('fixture-composer');c.textContent='开启禁止中文';document.querySelector('footer button').click();c.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
-        sent=await sendSnapshot();check(sent.sent.length===2&&sent.composer==='开启禁止中文','ON native Chinese not blocked');sendingChecks.push({stage:'on-native-blocked',...sent});
-        await setBlock(false);beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='关闭开关快速输入中文';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);await delay(1500);
-        sent=await sendSnapshot();check(sent.sent.at(-1)==='关闭开关快速输入中文'&&sent.quick===''&&requests.length===beforeSend&&sent.confirmCalls===0,'OFF quick send translated/failed: '+JSON.stringify(sent));sendingChecks.push({stage:'off-quick-original',...sent});
-        await setBlock(true);beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='开启开关快速输入翻译';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);await delay(1700);
-        sent=await sendSnapshot();check(sent.sent.at(-1)==='English translation'&&requests.length===beforeSend+1,'ON quick send did not translate: '+JSON.stringify(sent));sendingChecks.push({stage:'on-quick-translated',...sent});
-        await setBlock(false);beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='手动点击翻译';[...document.querySelectorAll('#haituo-whatsapp-translator button')].find(b=>b.textContent==='翻译').click()})()`);await delay(1500);
-        sent=await sendSnapshot();check(sent.sent.length===4&&sent.composer==='English translation'&&requests.slice(beforeSend).filter(r=>r.text==='手动点击翻译'&&r.purpose==='input').length===1,'Explicit translate failed when OFF: '+JSON.stringify(sent));sendingChecks.push({stage:'off-explicit-translate',...sent});
-        // Use the actual local onchange/save path, rather than only remote notifications.
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='切换保留草稿';document.querySelector('[data-haituo-block-chinese]').click()})()`);await delay(200);
-        let ui=await win.webContents.executeJavaScript(`({quick:document.getElementById('haituo-whatsapp-quick-input').value,placeholder:document.getElementById('haituo-whatsapp-quick-input').placeholder,label:document.querySelector('[data-haituo-translate-action="send"]').textContent,checked:document.querySelector('[data-haituo-block-chinese]').checked})`);
-        check(ui.checked&&ui.quick==='切换保留草稿'&&ui.placeholder.includes('翻译并发送')&&ui.label==='翻译并发送','ON local toggle UI/draft incorrect: '+JSON.stringify(ui));
-        await win.webContents.executeJavaScript(`document.querySelector('[data-haituo-block-chinese]').click()`);await delay(200);
-        ui=await win.webContents.executeJavaScript(`({quick:document.getElementById('haituo-whatsapp-quick-input').value,placeholder:document.getElementById('haituo-whatsapp-quick-input').placeholder,label:document.querySelector('[data-haituo-translate-action="send"]').textContent,checked:document.querySelector('[data-haituo-block-chinese]').checked})`);
-        check(!ui.checked&&ui.quick==='切换保留草稿'&&ui.placeholder.includes('直接发送原文')&&ui.label==='直接发送','OFF local toggle UI/draft incorrect: '+JSON.stringify(ui));sendingChecks.push({stage:'local-toggle-preserves-draft',...ui});
-        await win.webContents.executeJavaScript(`(()=>{const c=document.querySelector('[data-haituo-block-chinese]');c.click();c.click()})()`);await delay(350);
-        ui=await win.webContents.executeJavaScript(`({checked:document.querySelector('[data-haituo-block-chinese]').checked,quick:document.getElementById('haituo-whatsapp-quick-input').value,label:document.querySelector('[data-haituo-translate-action="send"]').textContent})`);
-        check(!ui.checked&&!fixtureConfig.blockChineseOutgoing&&ui.quick==='切换保留草稿'&&ui.label==='直接发送','Rapid toggle reverted latest choice: '+JSON.stringify(ui));sendingChecks.push({stage:'rapid-toggle-last-choice',...ui});
-        beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{document.getElementById('haituo-whatsapp-quick-input').value='';document.getElementById('fixture-composer').textContent='顶部原文中文';document.querySelector('[data-haituo-translate-action="send"]').click()})()`);await delay(1300);
-        sent=await sendSnapshot();check(sent.sent.at(-1)==='顶部原文中文'&&requests.length===beforeSend,'OFF top button translated/failed: '+JSON.stringify(sent));sendingChecks.push({stage:'off-top-original',...sent});
-        // No semantic send button: the attachment button must never be clicked.
-        await win.webContents.executeJavaScript(`(()=>{const b=document.querySelector('footer button');b.removeAttribute('aria-label');b.textContent='+';b.onclick=()=>window.attachmentClicked=true;window.trustedEnter=0;document.getElementById('fixture-composer').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.isTrusted)window.trustedEnter++});})()`);
-        win.focus();win.webContents.focus();beforeSend=requests.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='原生回车发送中文';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);await delay(1500);
-        sent=await sendSnapshot();const native=await win.webContents.executeJavaScript(`({trustedEnter:window.trustedEnter,attachmentClicked:!!window.attachmentClicked})`);
-        check(sent.sent.at(-1)==='原生回车发送中文'&&sent.quick===''&&native.trustedEnter===1&&!native.attachmentClicked&&requests.length===beforeSend,'Native Enter fallback failed: '+JSON.stringify({sent,native}));sendingChecks.push({stage:'trusted-enter-no-attachment',...sent,...native});
-        await setBlock(true);beforeSend=requests.length;const sentCount=sent.sent.length;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='并发回车只发送一次';for(let i=0;i<3;i++)q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);await delay(1600);
-        sent=await sendSnapshot();check(sent.sent.length===sentCount+1&&requests.length===beforeSend+1,'Concurrent Enter duplicated request/send: '+JSON.stringify(sent));sendingChecks.push({stage:'concurrent-enter-once',...sent});
-        const beforeStale=sent.sent.length;
-        holdInputTranslation=true;
-        await win.webContents.executeJavaScript(`(()=>{const q=document.getElementById('haituo-whatsapp-quick-input');q.value='翻译期间保留新输入';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);
-        await waitHeldInput();await win.webContents.executeJavaScript(`document.getElementById('fixture-composer').textContent='用户新输入'`);
-        holdInputTranslation=false;heldInputResolve();heldInputResolve=null;await delay(1500);
-        sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.composer==='用户新输入'&&sent.quick==='翻译期间保留新输入','Stale translation overwrote/sent new input: '+JSON.stringify(sent));sendingChecks.push({stage:'stale-input-preserved',...sent});
-        holdInputTranslation=true;
-        await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='';const q=document.getElementById('haituo-whatsapp-quick-input');q.value='切换模式取消旧发送';q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);
-        await waitHeldInput();await win.webContents.executeJavaScript(`document.querySelector('[data-haituo-block-chinese]').click()`);
-        holdInputTranslation=false;heldInputResolve();heldInputResolve=null;await delay(1500);
-        sent=await sendSnapshot();check(sent.sent.length===beforeStale&&sent.quick==='切换模式取消旧发送'&&sent.composer==='','Outgoing mode changed but old translation sent: '+JSON.stringify(sent));sendingChecks.push({stage:'mode-change-cancels-old-send',...sent});
+        mark('native-blocked');await setBlock(true);let beforeSend=requests.length;
+        await win.webContents.executeJavaScript(`(()=>{const c=document.getElementById('fixture-composer');c.textContent='开启禁止中文';document.querySelector('footer button').click()})()`);
+        let sent=await sendSnapshot();check(sent.sent.length===0&&sent.composer==='开启禁止中文'&&confirmCount===0,'ON native Chinese was not blocked');sendingChecks.push({stage:'on-native-blocked'});
+        mark('native-confirm-cancel');await setBlock(false);
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='取消中文发送';document.querySelector('footer button').click()})()`);
+        sent=await sendSnapshot();check(sent.sent.length===0&&confirmCount===1,'Cancelled Chinese confirmation sent a message');sendingChecks.push({stage:'off-confirm-cancel'});
+        mark('native-confirm-accept');acceptChinese=true;
+        await win.webContents.executeJavaScript(`document.querySelector('footer button').click()`);
+        sent=await sendSnapshot();check(sent.sent.at(-1)==='取消中文发送'&&confirmCount===2&&requests.length===beforeSend,'Accepted Chinese confirmation did not send original');sendingChecks.push({stage:'off-confirm-accept'});
+        for(const block of [true,false]){
+            mark('quick-enter-fill-'+block);await setBlock(block);beforeSend=requests.length;
+            const sentCount=(await sendSnapshot()).sent.length;
+            await win.webContents.executeJavaScript(`(()=>{document.getElementById('fixture-composer').textContent='';const q=document.getElementById('haituo-whatsapp-quick-input');q.value='回车翻译填入';for(let i=0;i<3;i++)q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))})()`);
+            await delay(1600);sent=await sendSnapshot();
+            check(sent.composer==='English translation'&&sent.sent.length===sentCount&&sent.preview.startsWith('回译：'),'Quick Enter must fill and backtranslate without sending: '+JSON.stringify(sent));
+            check(requests.slice(beforeSend).filter(r=>r.purpose==='input').length===1,'Repeated Enter duplicated input translation');sendingChecks.push({stage:'quick-fill-preview',block});
+            mark('native-send-hides-preview-'+block);
+            await win.webContents.executeJavaScript(`document.querySelector('footer button').click()`);await delay(300);sent=await sendSnapshot();
+            check(sent.sent.length===sentCount+1&&sent.sent.at(-1)==='English translation'&&!sent.preview,'Native send failed to dismiss preview');sendingChecks.push({stage:'send-clears-preview',block});
+        }
+        mark('toggle-preserves-draft');
+        await win.webContents.executeJavaScript(`(()=>{document.getElementById('haituo-whatsapp-quick-input').value='切换保留草稿';const c=document.querySelector('[data-haituo-block-chinese]');c.click();c.click()})()`);await delay(400);
+        sent=await sendSnapshot();check(sent.quick==='切换保留草稿','Settings toggle discarded draft');sendingChecks.push({stage:'toggle-preserves-draft'});
         clearTimeout(watchdog);mark('complete');(0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.exit(0);
     }catch(error){clearTimeout(watchdog);(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),stage:fixtureStage,requests},null,2));win?.destroy();p.app.exit(1);}
 }

@@ -24971,18 +24971,21 @@ function haituoSharedChatCacheKey(e) {
 }
 
 function haituoLongMessageComplete(source, result) {
-    const original = String(source || ``), translated = String(result || ``);
-    if (!translated.trim()) return !1;
-    const numbers = original.match(/\d+(?:[.,]\d+)*/gu) || [];
-    const compact = translated.replace(/[\s,，]/gu, ``);
-    if (numbers.some(number => !compact.includes(number.replace(/[\s,，]/gu, ``)))) return !1;
-    const originalLines = original.split(/\r?\n/u).filter(line => line.trim()).length;
-    const translatedLines = translated.split(/\r?\n/u).filter(line => line.trim()).length;
-    return originalLines <= 1 || translatedLines >= originalLines;
+    // Line wrapping and translated number spelling do not prove truncation.
+    // Empty responses remain invalid; provider errors still propagate.
+    return typeof result === `string` && !!result.trim();
+}
+
+function haituoTranslationNumberWarning(source, result) {
+    const normalize = value => String(value || ``).normalize(`NFKC`).replace(/[\s,，]/gu, ``);
+    const numbers = String(source || ``).normalize(`NFKC`).match(/\d+(?:[.,]\d+)*/gu) || [];
+    const output = normalize(result);
+    return numbers.some(number => !output.includes(normalize(number)));
 }
 
 async function haituoTranslateLongMessage(config, request) {
     const lines = String(request.text).replace(/\r\n/gu, `\n`).split(`\n`), output = [];
+    let needsNumberReview = !1;
     for (let index = 0; index < lines.length;) {
         const line = lines[index];
         if (!line.trim() || /^\s*[\d.,:;()\-+]+\s*$/u.test(line)) {
@@ -24994,16 +24997,19 @@ async function haituoTranslateLongMessage(config, request) {
         while (index < lines.length && group.length < 8 && group.join(`\n`).length < 900 && lines[index].trim() && !/^\s*[\d.,:;()\-+]+\s*$/u.test(lines[index])) group.push(lines[index++]);
         const source = group.join(`\n`), translated = await haituoTranslateWithMode(config, { ...request, text: source, __haituoLine: !0 });
         if (haituoLongMessageComplete(source, translated.text)) {
+            needsNumberReview ||= haituoTranslationNumberWarning(source, translated.text);
             output.push(...translated.text.trim().split(/\r?\n/u));
             continue;
         }
         for (const part of group) {
             const result = await haituoTranslateWithMode(config, { ...request, text: part, __haituoLine: !0, forceRefresh: !0 });
-            if (!haituoLongMessageComplete(part, result.text)) throw Error(`长段译文缺少数字，已停止保存不完整译文`);
+            if (!haituoLongMessageComplete(part, result.text)) throw Error(`翻译服务返回空白译文，请重试或更换翻译服务`);
+            needsNumberReview ||= haituoTranslationNumberWarning(part, result.text);
             output.push(result.text.trim());
         }
     }
-    return { text: output.join(`\n`), provider: `line-preserved`, cached: !1 };
+    if (needsNumberReview) console.warn(`[Haituo translation] Numeric formatting changed; translation returned for review, shared cache skipped`);
+    return { text: output.join(`\n`), provider: `line-preserved`, cached: !1, ...(needsNumberReview ? { warning: `number-format-review`, skipSharedCache: !0 } : {}) };
 }
 
 function haituoExistingChatTranslation(e) {
@@ -25029,7 +25035,7 @@ function haituoExistingChatTranslation(e) {
 }
 
 function haituoRememberChatTranslation(request, result) {
-    if (request.purpose !== `chat` || !result?.text?.trim() || result.cached) return;
+    if (request.purpose !== `chat` || !result?.text?.trim() || result.cached || result.skipSharedCache) return;
     const cache = loadHaituoTranslationCache();
     cache[haituoSharedChatCacheKey(request)] = { text: result.text, provider: result.provider, updatedAt: Date.now() };
     saveHaituoTranslationCache();

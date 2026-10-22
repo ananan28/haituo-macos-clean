@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build from editable src/app only; never restore an old repository or archive."""
-import argparse, hashlib, io, json, os, pathlib, plistlib, shutil, subprocess, sys, tarfile, urllib.request
+import argparse, hashlib, io, json, os, pathlib, plistlib, shutil, subprocess, sys, tarfile, urllib.request, urllib.error, time
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 CFG = json.loads((ROOT/'project.json').read_text(encoding='utf-8'))
@@ -13,8 +13,17 @@ def run(args, **kwargs):
     subprocess.run(args, check=True, **kwargs)
 
 def fetch(url):
-    with urllib.request.urlopen(url, timeout=120) as response:
-        return response.read()
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(url, timeout=90) as response:
+                return response.read()
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code not in [408,429,500,502,503,504]:
+                raise
+            if attempt == 3:
+                raise
+            print(f'Temporary dependency download failure; retry {attempt+1}/3: {url}',flush=True)
+            time.sleep(2 ** (attempt + 1))
 
 def install_archive(data, dest, prefix=''):
     with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:

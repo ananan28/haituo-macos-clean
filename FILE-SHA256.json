@@ -13,7 +13,7 @@
   "repair/test-fixtures.py": "8be792d1556a1203d2086de26fbfb526c7fa6f29c97632eb844e26fffc128cf4",
   "repair/test-runtime.py": "2fe6521a09b6f3dbb60acf6435efdefcbff7eb6f20f7fb70aa02ad008a29f461",
   "repair/window-order.swift": "eff6eee4124c5509318e2a53a76eebdcc4af6541d1d943c51e2255430baaa596",
-  "scripts/build.py": "6e5b98705e05058f44c6a73523f11807152bfbf93473ac784ab87376625305be",
+  "scripts/build.py": "9a2b83ed5be7fa3c38200b03a9b0b41fe035281ff755eac3a9a944dac9ed26a2",
   "scripts/network.test.cjs": "8bc6d6a3f91ae45c9651c54c14968feb11171df724885e3e89a4696f6fbaee63",
   "scripts/package-source.py": "d510cb39606a3543841c0d5510f70223425307652f02609ef98ec2b1ba84eb10",
   "scripts/patch-network.py": "f17db4ed7bd05c0088b522b9a7e5117b6617e9aec4428cf1004d0e0bee4a60ba",

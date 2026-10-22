@@ -30750,6 +30750,20 @@ async function haituoTestSettingsSync() {
             check(result.text==='local network recovery'&&requests===2,'Chromium retry transport failed');
             stages.push({source:'chromium-network-recovery',requests,ok:true});
             const screenshotUI=await haituoScreenshotController.verifyUI();stages.push({source:'actual-screenshot-ui-session',...screenshotUI,ok:true});
+            const readyDeadline=Date.now()+45000;
+            while(!await Z.webContents.executeJavaScript(`!!document.querySelector('.CaishengPlatformShell__settingsButton')`)&&Date.now()<readyDeadline)await delay(150);
+            await Z.webContents.executeJavaScript(`(()=>{if(!document.querySelector('.CaishengPlatformShell__settings'))document.querySelector('.CaishengPlatformShell__settingsButton').click()})()`);await delay(350);
+            const fields=await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__settings [data-haituo-setting]')].map(el=>el.dataset.haituoSetting)`);
+            check(['screenshotShortcut','screenshotEndpoint','screenshotApiKey','screenshotModel','deepseekModel'].every(name=>fields.includes(name)),'Actual inline settings controls are missing');
+            await Z.webContents.executeJavaScript(`(()=>{const el=document.querySelector('[data-haituo-setting="screenshotShortcut"]');el.focus();el.value='Control+Alt+P';el.dispatchEvent(new FocusEvent('focusout',{bubbles:true}))})()`);await delay(300);
+            check($p().screenshotShortcut==='Control+Alt+P','Inline shortcut change was not saved');
+            await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__settings button')].find(el=>el.textContent==='＋ 添加备用 API / 模型').click()`);await delay(300);
+            check(await Z.webContents.executeJavaScript(`!!document.querySelector('[data-haituo-setting="backup-0-model"]')`),'Blank backup API row disappeared before entry');
+            haituoApplyTranslationConfig({...$p(),screenshotShortcut:original.screenshotShortcut||'CommandOrControl+Alt+O',openaiApiProfiles:original.openaiApiProfiles||[]});
+            rmRefresh({preventDefault(){}},{type:'keyDown',key:'Escape'});await delay(250);
+            check(!await Z.webContents.executeJavaScript(`!!document.querySelector('.CaishengPlatformShell__settings')`),'Escape from main input did not close inline settings');
+            check(!haituoOwnEscape,'Temporary Escape shortcut was not released');
+            stages.push({source:'actual-inline-settings-controls-save-and-escape',fields,ok:true});
         } finally { await new Promise(resolve=>server.close(resolve)); }
         const launch=p.ipcMain._invokeHandlers.get('caisheng:launch-signal-profile');
         for(const id of ids){await launch({senderFrame:{url:'file:///settings-fixture'}},id);const deadline=Date.now()+60000;while(!Xg.has(id)&&Date.now()<deadline)await delay(200);check(Xg.has(id),'Settings child did not become ready');await request(id)}

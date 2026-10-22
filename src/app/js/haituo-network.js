@@ -40,7 +40,7 @@ async function requestJSON(fetcher, url, init, timeout, sleep = ms => new Promis
       const transient = controller.signal.aborted || cause?.name === 'TimeoutError' || cause instanceof TypeError || /ERR_(?:CONNECTION|NETWORK|INTERNET|NAME_NOT_RESOLVED|TIMED_OUT)|fetch failed/iu.test(String(cause?.message || '')) || [408, 502, 503, 504].includes(cause?.status);
       if (!transient) throw cause;
       if (attempt === maxAttempts - 1) {
-        const error = Error(controller.signal.aborted ? '翻译请求超时，已重试一次；请稍后重试' : '翻译服务连接中断，已重试一次；请检查网络或代理后重试');
+        const error = Error(controller.signal.aborted ? `翻译请求超时${maxAttempts===2?'，已重试一次':maxAttempts>1?'，已重试 '+(maxAttempts-1)+' 次':''}；请稍后重试` : `翻译服务连接中断${maxAttempts===2?'，已重试一次':maxAttempts>1?'，已重试 '+(maxAttempts-1)+' 次':''}；请检查网络或代理后重试`);
         error.code = controller.signal.aborted ? 'TRANSLATION_TIMEOUT' : 'TRANSLATION_NETWORK';
         error.status = cause?.status;
         throw error;

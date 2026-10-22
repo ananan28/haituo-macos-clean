@@ -24870,6 +24870,7 @@ async function Xp(e) {
             },
             body: JSON.stringify({
                 model: e.model || (r === `groq` ? `openai/gpt-oss-120b` : r === `deepseek` ? `deepseek-flash` : `gpt-4.1-mini`),
+                ...(/^https:\/\/api\.deepseek\.com(?:\/|$)/iu.test(e.endpoint || (r === `deepseek` ? `https://api.deepseek.com` : ``)) ? {thinking:{type:`disabled`}} : {}),
                 temperature: e.forceRefresh || e.provider === `smart-retranslate` ? .35 : .15,
                 messages: [ {
                     role: `system`,

@@ -21516,7 +21516,7 @@ http://jedwatson.github.io/classnames
             if(!node){rest.push(node);continue}
             if(node.props?.['data-haituo-advanced-settings']){advanced=node;continue}
             const label=words(node);
-            if(/Groq.*API|Keppl.*API|Whisper|语音识别.*API/.test(label))groups.voice.push(node);
+            if(/Groq.*API|Keppl.*API|Whisper|音转文|语音转文字服务|语音识别.*API/.test(label))groups.voice.push(node);
             else if(node.type==='select'&&/输入.*翻译|聊天.*翻译/.test(label))continue;
             else if(node.type==='select'&&/音转文|语音转文字服务/.test(label))rest.push(node);
             else if(/API|密钥|模型|接口|Endpoint|LibreTranslate 服务地址|微软翻译区域/i.test(label))groups.api.push(node);

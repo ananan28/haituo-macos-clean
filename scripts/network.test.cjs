@@ -79,3 +79,12 @@ test('all four target language selectors include the same 20 codes',()=>{
   for(const factory of ['u6','O9']){const list=renderer.match(new RegExp('children: \\[ \\(0, '+factory+'\\.jsx\\)\\(`option`, \\{ value: `zh-CN`[^\\n]+'))[0];assert.deepEqual([...list.matchAll(/value: `([^`]+)`/g)].map(m=>m[1]),expected);}
   const list=web.match(/for \(const \[e, t\] of (\[\[.*?\]\])\)/)[1];assert.deepEqual(JSON.parse(list).map(row=>row[0]),expected);
 });
+
+test('WhatsApp settings refresh preserves every selectable target language',async()=>{
+  const web=fs.readFileSync(__dirname+'/../src/app/js/caisheng-webview-preload.js','utf8');
+  const start=web.indexOf('async function refreshSettings()'),end=web.indexOf('\nasync function saveSettings',start);
+  for(const target of ['zh-CN','en','ja','ko','es','fr','de','it','pt','ru','ar','th','vi','id','ms','hi','tr','nl','pl','uk']){
+    const ctx={settings:{targetLanguage:'en'},ipcRenderer:{invoke:async()=>({targetLanguage:target})},haituoPendingValues:()=>({}),applyChatColor(){},applyTranslatorTheme(){},haituoSyncOutgoingControls(){}};
+    vm.createContext(ctx);vm.runInContext(web.slice(start,end),ctx);await ctx.refreshSettings();assert.equal(ctx.settings.targetLanguage,target);
+  }
+});

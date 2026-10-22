@@ -220,7 +220,7 @@ async function refreshSettings() {
         e && "object" == typeof e && (settings = {
             ...settings,
             ...e, ...haituoPendingValues()
-        }), settings.targetLanguage && "zh-CN" !== settings.targetLanguage || (settings.targetLanguage = "en"), 
+        }), settings.targetLanguage || (settings.targetLanguage = "en"), 
         localPanelPreference = null,
         applyChatColor(), applyTranslatorTheme(), haituoSyncOutgoingControls(), wasHidden !== !!settings.hideTranslationBox && (panel?.remove(), panel = null, findComposer() && showPanel(findComposer()));
     } catch {}

@@ -24718,7 +24718,7 @@ async function haituoTranslationFetch(url, init) {
     return p.session.fromPartition(`haituo-service-network`).fetch(url, init);
 }
 async function Yp(e, t, n) {
-    return HaituoNetwork.requestJSON(haituoTranslationFetch, e, t, n);
+    return HaituoNetwork.requestJSON(haituoTranslationFetch, e, t, n, undefined, 1);
 }
 
 function haituoSplitTranslationText(e, t) {
@@ -24869,7 +24869,7 @@ async function Xp(e) {
                 "Content-Type": `application/json`
             },
             body: JSON.stringify({
-                model: e.model || (r === `groq` ? `openai/gpt-oss-120b` : `gpt-4.1-mini`),
+                model: e.model || (r === `groq` ? `openai/gpt-oss-120b` : r === `deepseek` ? `deepseek-flash` : `gpt-4.1-mini`),
                 temperature: e.forceRefresh || e.provider === `smart-retranslate` ? .35 : .15,
                 messages: [ {
                     role: `system`,
@@ -25104,28 +25104,33 @@ async function haituoTranslateWithMode(config, request) {
     }
     const errors = [], local = async provider => {
         try {
+            const route = provider === 'deepseek' ? {...config,
+                apiKey:config.deepseekApiKey || config.apiKey, endpoint:config.deepseekEndpoint || 'https://api.deepseek.com/v1',model:config.deepseekModel || 'deepseek-flash',
+                openaiApiProfiles:String(config.deepseekApiKeys||'').split(/\r?\n/u).map(apiKey=>({apiKey:apiKey.trim(),endpoint:config.deepseekEndpoint||'https://api.deepseek.com/v1',model:config.deepseekModel||'deepseek-flash'})).filter(p=>p.apiKey)} : config;
             const base = {
-                ...config,
+                ...route,
                 ...request,
                 provider,
                 timeoutMs: HaituoNetwork.translationTimeout(provider, request.text, config.timeoutMs),
-                apiKey: provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : config.apiKey,
-                endpoint: provider === `groq` ? `https://api.groq.com/openai/v1` : config.endpoint,
-                model: provider === `groq` ? `openai/gpt-oss-120b` : config.model
+                apiKey: provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : route.apiKey,
+                endpoint: provider === `groq` ? `https://api.groq.com/openai/v1` : route.endpoint,
+                model: provider === `groq` ? `openai/gpt-oss-120b` : route.model
             };
             let result;
-            if (provider === `openai` && haituoOpenAIProfiles(config).length) {
-                const profiles = haituoOpenAIProfiles(config), start = HaituoOpenAIKeyCursor++ % profiles.length;
-                const failures = [], attempts = Math.min(profiles.length, 3);
-                for (let offset = 0; offset < attempts; offset += 1) {
-                    try {
-                        result = await cachedHaituoTranslate({ ...base, ...profiles[(start + offset) % profiles.length] }, !!request.forceRefresh);
-                        break;
-                    } catch (error) {
-                        failures.push(error instanceof Error ? error.message : String(error));
+            if ([`openai`,`deepseek`,`qwen`,`glm`].includes(provider) && haituoOpenAIProfiles(route).length) {
+                const profiles = haituoOpenAIProfiles(route), failures = [];
+                // Two attempts on each configured endpoint before moving to the next.
+                for (const profile of profiles) {
+                    for (let attempt=0; attempt<2; attempt++) {
+                        try { result=await cachedHaituoTranslate({...base,...profile},!!request.forceRefresh);break; }
+                        catch(error) { failures.push(error instanceof Error ? error.message : String(error));
+                            if (/HTTP (400|401|402|403|404|422)\b/u.test(String(error.message))) break;
+                            if(attempt===0)await new Promise(resolve=>setTimeout(resolve,500));
+                        }
                     }
+                    if(result)break;
                 }
-                if (!result) throw Error(`OpenAI 本次尝试的 ${attempts} 个接口均未成功：${failures.join(`；`)}`);
+                if(!result)throw Error(provider+' 已配置接口均未成功：'+failures.slice(-4).join('；'));
             } else result = await cachedHaituoTranslate(base, !!request.forceRefresh);
             return result;
         } catch (error) {
@@ -25136,7 +25141,12 @@ async function haituoTranslateWithMode(config, request) {
     if (request.provider && ![ `auto`, `smart-retranslate` ].includes(request.provider)) {
         const selected = await tryOne(() => local(request.provider));
         if (selected) return selected;
-        if (!request.strictProvider) for (const provider of [`google-free`, `mymemory`].filter(value => value !== request.provider)) {
+        if (!request.strictProvider) for (const provider of [...new Set([
+            ...(config.deepseekApiKey || config.deepseekApiKeys ? ['deepseek'] : []),
+            ...(config.groqApiKey ? ['groq'] : []),
+            ...(haituoOpenAIProfiles(config).length ? ['openai'] : []),
+            'google-free','mymemory'
+        ])].filter(value => value !== request.provider)) {
             const fallback = await tryOne(() => local(provider));
             if (fallback) return { ...fallback, fallbackFrom: request.provider, fallbackReason: errors.at(-1) || `所选服务不可用` };
         }
@@ -25286,7 +25296,7 @@ function tm() {
             timeoutMs: a.timeoutMs
         });
         const startedAt = Date.now();
-        const result = await haituoTranslateWithMode(a, r);
+        const result = await HaituoNetwork.retryTranslation(() => haituoTranslateWithMode(a, r));
         haituoRememberChatTranslation(a, result);
         return haituoRecordTranslationStatus(result, startedAt), result;
     }), p.ipcMain.removeHandler(`caisheng:webview-translate`), p.ipcMain.handle(`caisheng:webview-translate`, async (e, t, n, i) => {
@@ -25301,7 +25311,7 @@ function tm() {
             provider: typeof i?.provider == `string` ? i.provider : $p().chatTranslationProvider || `google-free`
         };
         const startedAt = Date.now();
-        const result = await haituoTranslateWithMode(r, r);
+        const result = await HaituoNetwork.retryTranslation(() => haituoTranslateWithMode(r, r));
         haituoRememberChatTranslation(r, result);
         return haituoRecordTranslationStatus(result, startedAt), result;
     }), p.ipcMain.removeHandler(`caisheng:webview-replace-text`), p.ipcMain.handle(`caisheng:webview-replace-text`, async (e, t) => {
@@ -27552,9 +27562,20 @@ const Yg = new Map, Xg = new Set, caishengFocusedSignals = new Set, caishengLast
 
 let caishengLabelRequestSequence = 0;
 
+let haituoScreenshotController;
 function haituoApplyTranslationConfig(t) {
     if ($u !== `signal-main` && process.connected) return haituoRequestGlobalSettings(t);
+    if (haituoScreenshotController) haituoScreenshotController.configure({...$p(), ...t});
     Zp = {
+        deepseekApiKey: String(t?.deepseekApiKey ?? $p().deepseekApiKey ?? '').trim(),
+        deepseekApiKeys: String(t?.deepseekApiKeys ?? $p().deepseekApiKeys ?? '').trim(),
+        deepseekEndpoint: String(t?.deepseekEndpoint ?? $p().deepseekEndpoint ?? '').trim(),
+        deepseekModel: String(t?.deepseekModel ?? $p().deepseekModel ?? '').trim(),
+        screenshotEnabled: t?.screenshotEnabled !== false,
+        screenshotShortcut: String(t?.screenshotShortcut || $p().screenshotShortcut || 'CommandOrControl+Alt+O'),
+        screenshotEndpoint: String(t?.screenshotEndpoint ?? $p().screenshotEndpoint ?? '').trim(),
+        screenshotApiKey: String(t?.screenshotApiKey ?? $p().screenshotApiKey ?? '').trim(),
+        screenshotModel: String(t?.screenshotModel ?? $p().screenshotModel ?? '').trim(),
         provider: typeof t?.provider == `string` ? t.provider : `google-free`,
         inputTranslationProvider: typeof t?.inputTranslationProvider == `string` ? t.inputTranslationProvider : `google-free`,
         chatTranslationProvider: typeof t?.chatTranslationProvider == `string` ? t.chatTranslationProvider : `google-free`,
@@ -27741,6 +27762,7 @@ function $g(e, t, a) {
 p.ipcMain.removeAllListeners(`haituo:order-selected-account`);p.ipcMain.on(`haituo:order-selected-account`,()=>haituoMacOrderSelectedAccount());
 
 function haituoMacOrderSelectedAccount() {
+    if (haituoScreenshotController?.capturing) return;
     if (process.platform !== `darwin` || $u !== `signal-main` || !Z || Z.isDestroyed() || !Z.isVisible() || Z.isMinimized()) return;
     if(!Z.isFocused() && !caishengFocusedSignals.has(Zg?.id) && !caishengMenuOpen)return;
     const child=Yg.get(Zg?.id);
@@ -27750,6 +27772,7 @@ function haituoMacOrderSelectedAccount() {
 }
 
 function haituoMacFocusSelectedAccount() {
+    if (haituoScreenshotController?.capturing) return;
     if (process.platform !== `darwin` || $u !== `signal-main` || caishengMenuOpen || !Z || Z.isDestroyed() || !Z.isVisible() || Z.isMinimized()) return;
     const child = Yg.get(Zg?.id);
     if (child && Xg.has(Zg?.id) && Zg?.width > 0 && Zg?.height > 0) {
@@ -28673,7 +28696,7 @@ async function haituoShowSettingsWindow() {
         backgroundColor: `#080704`,
         webPreferences: { partition: `haituo-native-interface`, nodeIntegration: !1, contextIsolation: !0, sandbox: !0 }
     }), place();
-    const configJson = JSON.stringify({ ...$p(), brandBadgeText: HaituoNetwork.normalizeBadge($p().brandBadgeText) }).replace(/</gu, `\\u003c`), html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    const configJson = JSON.stringify({ ...$p(), brandBadgeText: HaituoNetwork.normalizeBadge($p().brandBadgeText), screenshotShortcut: $p().screenshotShortcut || 'CommandOrControl+Alt+O' }).replace(/</gu, `\\u003c`), html = `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;font:14px "Microsoft YaHei UI",sans-serif}body{border-radius:12px;overflow:hidden}.title{-webkit-app-region:drag;height:46px;display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:800}.title button{-webkit-app-region:no-drag;margin-left:auto;width:32px;height:32px;padding:0;font-size:20px}.scroll{height:calc(100% - 102px);overflow:auto;padding:12px 14px;scrollbar-color:#a77b29 #0b0905}.intro{padding:9px 11px;border-radius:8px;margin-bottom:10px}.section{margin:14px 0 7px;padding-bottom:5px;font-weight:800}.row{display:flex;gap:8px;align-items:center;margin:9px 0}.row.column{display:flex;flex-direction:column;align-items:stretch}.row>span:first-child{min-width:118px;}.check{display:flex;gap:8px;align-items:center;margin:9px 0}.check input{width:18px;height:18px;}input,select,button{min-height:34px;border-radius:7px;padding:5px 8px;outline:none}input:focus,select:focus{}.grow{flex:1;min-width:0}.colors{display:grid;grid-template-columns:1fr 126px;gap:8px;width:100%}input[type=color]{width:100%;padding:2px}.rainbow{font-weight:800;}.footer{height:56px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 14px;}.primary{font-weight:900;}.muted{}.fontValue{min-width:40px;text-align:right}</style><style>
 body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}.scroll{flex:1;min-height:0;height:auto;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#888 transparent}.footer{flex:0 0 56px}.scroll::-webkit-scrollbar{width:12px}.scroll::-webkit-scrollbar-thumb{background:#888;border-radius:8px;border:3px solid transparent;background-clip:padding-box}.scroll::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}[hidden]{display:none!important}
 </style><style id="haituo-native-settings">${haituoNativeSettingsCss($p().nativeTheme)}</style></head><body>
@@ -28695,10 +28718,24 @@ body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;
 <label class="row column"><span>Groq API Key</span><input name="groqApiKey" type="password" placeholder="仅保存在本机"></label>
 <label class="row column"><span>DeepL API Key</span><input name="deepLApiKey" type="password" placeholder="仅保存在本机"></label>
 <label class="row column"><span>OpenAI / 兼容服务 API Key</span><input name="apiKey" type="password" placeholder="仅保存在本机"></label>
-<details id="multiApiDrawer"><summary>多 API 调度 · 点击展开逐条填写</summary><div id="multiApiRows"></div><button id="addApiKey" type="button">＋ 添加 OpenAI 接口</button><div class="muted">选择 OpenAI 时按顺序轮换；当前接口失败时尝试下一条。单接口填写在上方。</div></details>
+<details id="multiApiDrawer"><summary>通用 AI 接口调度 · 点击展开逐条填写</summary><div id="multiApiRows"></div><button id="addApiKey" type="button">＋ 添加 AI 接口</button><div class="muted">支持 OpenAI、DeepSeek、Qwen、GLM 等 OpenAI 兼容接口，每条独立填写地址、密钥和模型。当前接口失败重试一次，再切下一条。</div></details>
 <label class="row column"><span>API 地址</span><input name="endpoint" placeholder="如 https://api.openai.com/v1"></label>
 <label class="row column"><span>模型</span><input name="model" placeholder="如 gpt-4.1-mini"></label>
 <label class="row"><span>目标语言</span><select class="grow" name="targetLanguage"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="es">Español</option><option value="fr">法语 · Français</option><option value="de">德语 · Deutsch</option><option value="it">意大利语 · Italiano</option><option value="pt">葡萄牙语 · Português</option><option value="ru">俄语 · Русский</option><option value="ar">阿拉伯语 · العربية</option><option value="th">泰语 · ไทย</option><option value="vi">越南语 · Tiếng Việt</option><option value="id">印尼语 · Indonesia</option><option value="ms">马来语 · Melayu</option><option value="hi">印地语 · हिन्दी</option><option value="tr">土耳其语 · Türkçe</option><option value="nl">荷兰语 · Nederlands</option><option value="pl">波兰语 · Polski</option><option value="uk">乌克兰语 · Українська</option></select></label>
+<div class="section">DeepSeek 独立接口</div>
+<label class="row column"><span>DeepSeek API 密钥</span><input name="deepseekApiKey" type="password"></label>
+<label class="row column"><span>额外 DeepSeek API 密钥（一行一个，最多 11 条参与调度）</span><textarea name="deepseekApiKeys" rows="4" style="-webkit-text-security:disc"></textarea></label>
+<label class="row column"><span>DeepSeek 地址</span><input name="deepseekEndpoint" placeholder="https://api.deepseek.com/v1"></label>
+<label class="row column"><span>DeepSeek 模型（支持自定义）</span><input name="deepseekModel" placeholder="deepseek-flash"></label>
+<div class="muted">输入翻译或聊天翻译选择 DeepSeek 即生效，独立保存，不覆盖 OpenAI。密钥按顺序轮换，当前接口失败会尝试下一条。</div>
+<div class="section">全局截图翻译</div>
+<label class="check"><input type="checkbox" name="screenshotEnabled">启用全局截图翻译</label>
+<label class="row column"><span>截图快捷键（其他软件中也可用）</span><input name="screenshotShortcut" placeholder="CommandOrControl+Alt+O"></label>
+<label class="row column"><span>截图 API 地址（留空沿用上方）</span><input name="screenshotEndpoint"></label>
+<label class="row column"><span>截图 API 密钥（留空沿用上方）</span><input name="screenshotApiKey" type="password"></label>
+<label class="row column"><span>支持图片的模型（留空沿用上方模型）</span><input name="screenshotModel"></label>
+<div class="muted">默认 Ctrl+Alt+O；Mac 为 Command+Alt+O。仅上传框选区域，显示原文与中文译文。Mac 首次使用需允许系统屏幕录制。</div>
+<button type="button" onclick="send('screenshot')">截图翻译</button>
 <div class="section">聊天外观</div>
 <label class="row"><span>外观</span><select name="nativeTheme"><option value="dark">原生深色</option><option value="light">原生浅色</option></select></label>
 <label class="row"><span>聊天字体大小</span><input class="grow" name="chatFontSize" type="range" min="12" max="24" step="1"><span class="fontValue" id="fontValue"></span></label>
@@ -28724,7 +28761,7 @@ function syncProviderFields(){
     apiRow.querySelector('span').textContent=providers.includes('openai')||voice==='openai'?'OpenAI API Key':'OpenAI / 兼容服务 API Key';
     groqRow.hidden=!(providers.includes('groq')||voice==='groq');
     form.deepLApiKey.closest('label').hidden=!providers.includes('deepl');
-    document.getElementById('multiApiDrawer').hidden=!providers.includes('openai');
+    document.getElementById('multiApiDrawer').hidden=false;
     form.endpoint.closest('label').hidden=!(compatible||providers.includes('groq'));
     form.model.closest('label').hidden=!(compatible||providers.includes('groq'));
     form.endpoint.placeholder=providers.includes('openai')?'https://api.openai.com/v1':'服务商的兼容 API 地址';
@@ -28745,7 +28782,7 @@ form.incomingBubbleLinked.onchange=()=>{syncBubbleColors();send('preview')};
 form.incomingBubbleColor.oninput=()=>send('preview');
 form.chatTextColor.oninput=()=>send('preview');form.nativeTheme.onchange=()=>send('preview');
 document.getElementById('resetColors').onclick=()=>{haituoEditedColors.clear();for(const key of ['chatTextColor','outgoingBubbleColor','incomingBubbleColor']){cfg[key]='';form.elements[key].value=cfg.nativeTheme==='light'?'#202020':'#eeeeee';initialColors[key]=form.elements[key].value}form.incomingBubbleLinked.checked=true;send('preview')};
-function collect(){const data={...cfg};for(const [key,value] of new FormData(form))data[key]=value;data.openaiApiProfiles=[...multiRows.children].map(row=>({apiKey:row.querySelector('[data-api-field=apiKey]').value.trim(),endpoint:row.querySelector('[data-api-field=endpoint]').value.trim(),model:row.querySelector('[data-api-field=model]').value.trim()})).filter(profile=>profile.apiKey);for(const key of ['hideTranslationBox','autoTranslateIncoming','backTranslationEnabled','groupBackTranslationEnabled','blockChineseOutgoing'])data[key]=form.elements[key].checked;data.darkTheme=form.nativeTheme.value==='dark';data.nativeTheme=form.nativeTheme.value;data.chatFontSize=Number(form.chatFontSize.value)||15;data.incomingBubbleLinked=form.incomingBubbleLinked.checked;data.incomingBubbleColor=form.incomingBubbleLinked.checked?form.outgoingBubbleColor.value:form.incomingBubbleColor.value;for(const key of ['chatTextColor','outgoingBubbleColor','incomingBubbleColor'])if(!haituoEditedColors.has(key)&&form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';data.incomingBubbleColor=data.incomingBubbleLinked?data.outgoingBubbleColor:data.incomingBubbleColor;data.chatTextGradientIndex=0;data.outgoingBubbleGradientIndex=0;data.shortcut=data.refreshShortcut;return data}
+function collect(){const data={...cfg};for(const [key,value] of new FormData(form))data[key]=value;data.openaiApiProfiles=[...multiRows.children].map(row=>({apiKey:row.querySelector('[data-api-field=apiKey]').value.trim(),endpoint:row.querySelector('[data-api-field=endpoint]').value.trim(),model:row.querySelector('[data-api-field=model]').value.trim()})).filter(profile=>profile.apiKey);for(const key of ['screenshotEnabled','hideTranslationBox','autoTranslateIncoming','backTranslationEnabled','groupBackTranslationEnabled','blockChineseOutgoing'])data[key]=form.elements[key].checked;data.darkTheme=form.nativeTheme.value==='dark';data.nativeTheme=form.nativeTheme.value;data.chatFontSize=Number(form.chatFontSize.value)||15;data.incomingBubbleLinked=form.incomingBubbleLinked.checked;data.incomingBubbleColor=form.incomingBubbleLinked.checked?form.outgoingBubbleColor.value:form.incomingBubbleColor.value;for(const key of ['chatTextColor','outgoingBubbleColor','incomingBubbleColor'])if(!haituoEditedColors.has(key)&&form.elements[key].value===initialColors[key])data[key]=cfg[key]||'';data.incomingBubbleColor=data.incomingBubbleLinked?data.outgoingBubbleColor:data.incomingBubbleColor;data.chatTextGradientIndex=0;data.outgoingBubbleGradientIndex=0;data.shortcut=data.refreshShortcut;return data}
 form.onsubmit=e=>{e.preventDefault();send('save')};const close=()=>send('close');document.getElementById('close').onclick=close;document.getElementById('cancel').onclick=close;addEventListener('keydown',e=>{if(e.key==='Escape')close()});</script></body></html>`;
     caishengSettingsWindow.webContents.on(`will-navigate`, (event, url) => {
         if (!url.startsWith(`haituo-settings://`)) return;
@@ -28754,8 +28791,10 @@ form.onsubmit=e=>{e.preventDefault();send('save')};const close=()=>send('close')
             const parsed = new URL(url), action = parsed.hostname;
             if (action === `close`) return void caishengSettingsWindow?.close();
             const payload = JSON.parse(parsed.searchParams.get(`value`) || `{}`);
-            haituoApplyTranslationConfig(payload), action === `save` && caishengSettingsWindow?.close();
-        } catch {}
+            haituoApplyTranslationConfig(payload);
+            if (action === 'screenshot') { caishengSettingsWindow?.close(); setTimeout(() => haituoScreenshotController?.start(), 250); }
+            if (action === 'save') caishengSettingsWindow?.close();
+        } catch (error) { caishengSettingsWindow?.webContents.executeJavaScript(`document.getElementById('status').textContent=${JSON.stringify(String(error.message || error))}`).catch(()=>{}); }
     }), caishengSettingsWindow.once(`ready-to-show`, () => haituoRaiseOverlayWindow(caishengSettingsWindow)), caishengSettingsWindow.webContents.once(`did-finish-load`, () => haituoRaiseOverlayWindow(caishengSettingsWindow)), caishengSettingsWindow.once(`closed`, () => {
         Z?.removeListener(`move`, place), Z?.removeListener(`resize`, place), Z?.removeListener(`minimize`, hideWithParent), Z?.removeListener(`hide`, hideWithParent), Z?.removeListener(`restore`, showWithParent), Z?.removeListener(`show`, showWithParent), Z?.removeListener(`closed`, closeWithParent), caishengSettingsWindow = void 0;
     }), Z.on(`move`, place), Z.on(`resize`, place), Z.on(`minimize`, hideWithParent), Z.on(`hide`, hideWithParent), Z.on(`restore`, showWithParent), Z.on(`show`, showWithParent), Z.on(`closed`, closeWithParent), caishengSettingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).then(() => {
@@ -31075,3 +31114,8 @@ if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TES
         present();
     });
 }
+
+if ($u === 'signal-main') p.app.whenReady().then(() => {
+    haituoScreenshotController = require('../js/haituo-screenshot.js').createController({electron:p,getConfig:$p,requestJSON:(url,init,timeout)=>HaituoNetwork.retryTranslation(()=>Yp(url,init,timeout))});
+    try { haituoScreenshotController.configure($p()); } catch (error) { X.warn('截图快捷键注册失败：'+error.message); }
+});

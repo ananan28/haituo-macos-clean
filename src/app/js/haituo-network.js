@@ -11,8 +11,8 @@ function normalizeBadge(value) {
   return [...String(value ?? 'SVIP').replace(/[\u0000-\u001f\u007f]/gu, '').trim()].slice(0, 24).join('');
 }
 
-async function requestJSON(fetcher, url, init, timeout, sleep = ms => new Promise(resolve => setTimeout(resolve, ms))) {
-  for (let attempt = 0; attempt < 2; attempt++) {
+async function requestJSON(fetcher, url, init, timeout, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), maxAttempts = 2) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     let retryAfter = 0;
@@ -39,7 +39,7 @@ async function requestJSON(fetcher, url, init, timeout, sleep = ms => new Promis
     } catch (cause) {
       const transient = controller.signal.aborted || cause?.name === 'TimeoutError' || cause instanceof TypeError || /ERR_(?:CONNECTION|NETWORK|INTERNET|NAME_NOT_RESOLVED|TIMED_OUT)|fetch failed/iu.test(String(cause?.message || '')) || [408, 502, 503, 504].includes(cause?.status);
       if (!transient) throw cause;
-      if (attempt === 1) {
+      if (attempt === maxAttempts - 1) {
         const error = Error(controller.signal.aborted ? '翻译请求超时，已重试一次；请稍后重试' : '翻译服务连接中断，已重试一次；请检查网络或代理后重试');
         error.code = controller.signal.aborted ? 'TRANSLATION_TIMEOUT' : 'TRANSLATION_NETWORK';
         error.status = cause?.status;
@@ -77,3 +77,17 @@ function installWebRecovery(contents, timers = { setTimeout, clearTimeout }) {
 }
 
 module.exports = { translationTimeout, normalizeBadge, requestJSON, resolveSignalProxy, installWebRecovery };
+
+// Translation-only retries never invoke a message-send operation.
+async function retryTranslation(work, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), onRetry = () => {}) {
+  for (let attempt=0; attempt<=5; attempt++) {
+    try { return await work(); } catch(error) {
+      const message=String(error?.message||error);
+      if ([400,401,402,403,404,422].includes(error?.status) || /HTTP (400|401|402|403|404|422)\b|invalid.api.key|insufficient_quota|认证失败|未配置|请.*填写|不支持图片/i.test(message)) throw error;
+      if(attempt===5) { const failure=Error('翻译失败，已自动重试 5 次：'+message);failure.cause=error;throw failure; }
+      onRetry(attempt+1,5);
+      await sleep([500,1000,2000,4000,8000][attempt]);
+    }
+  }
+}
+module.exports.retryTranslation=retryTranslation;

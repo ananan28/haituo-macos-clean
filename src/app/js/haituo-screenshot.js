@@ -54,7 +54,7 @@ function createController({electron:e,getConfig,requestJSON,openSettings=()=>{},
   shortcut=next;copyShortcut=copy;if(shortcutPaused){if(shortcut)e.globalShortcut.unregister(shortcut);if(copyShortcut)e.globalShortcut.unregister(copyShortcut)}
  }
  e.ipcMain.handle('haituo:screenshot-select',(event,rect)=>{if(overlay&&event.sender===overlay.webContents)return select(rect)});
- e.ipcMain.handle('haituo:screenshot-copy-image',(event,data)=>{if(!overlay||event.sender!==overlay.webContents)throw Error('无效截图来源');if(typeof data!=='string'||data.length>48*1024*1024||!/^data:image\/png;base64,/.test(data))throw Error('截图数据无效或过大');const png=e.nativeImage.createFromDataURL(data),size=png.getSize();if(png.isEmpty()||size.width*size.height>40e6)throw Error('截图图像无效或过大');e.clipboard.writeImage(png);cancel();return {ok:true}});
+ e.ipcMain.handle('haituo:screenshot-copy-image',async(event,data)=>{if(!overlay||event.sender!==overlay.webContents)throw Error('无效截图来源');if(typeof data!=='string'||data.length>48*1024*1024||!/^data:image\/png;base64,/.test(data))throw Error('截图数据无效或过大');const png=e.nativeImage.createFromDataURL(data),size=png.getSize();if(png.isEmpty()||size.width*size.height>40e6)throw Error('截图图像无效或过大');await require('./haituo-clipboard').writeImage(e,png);cancel();return {ok:true}});
  e.ipcMain.on('haituo:screenshot-cancel',event=>{if(overlay&&event.sender===overlay.webContents)cancel()});
  e.ipcMain.on('haituo:screenshot-copy',(event,text)=>{if(overlay&&event.sender===overlay.webContents&&typeof text==='string')e.clipboard.writeText(text.slice(0,200000))});
  e.app.on('will-quit',()=>{cancel();if(shortcut)e.globalShortcut.unregister(shortcut);if(copyShortcut)e.globalShortcut.unregister(copyShortcut)});
@@ -74,7 +74,7 @@ function createController({electron:e,getConfig,requestJSON,openSettings=()=>{},
    capture.webContents.send('haituo:screenshot-result',{type:'capture',mode:'capture',image:sample.toDataURL()});await new Promise(r=>setTimeout(r,80));
    const expected=await capture.webContents.executeJavaScript(`(async()=>{await document.getElementById('screen').decode();rect={x:20,y:20,width:200,height:120};position();setTool('rectangle');commands.push({type:'rectangle',x:10,y:10,endX:70,endY:40,color:'#ff0000'});paint();document.getElementById('undo').click();if(commands.length)throw Error('撤销无效');commands.push({type:'text',x:10,y:10,text:'test',color:'#ff0000'},{type:'mosaic',x:40,y:30,endX:100,endY:65,color:'#ff0000'},{type:'cover',x:120,y:30,endX:170,endY:65,color:'#202020'});paint();const pixel=drawing.getImageData(130,40,1,1).data;if(pixel[0]!==32||pixel[3]!==255)throw Error('实色遮挡未写入画布');const img=document.getElementById('screen'),expected={width:Math.round(rect.width*img.naturalWidth/innerWidth),height:Math.round(rect.height*img.naturalHeight/innerHeight)};copyScreenshot();return expected})()`);
    const deadline=Date.now()+5000;while(!capture.isDestroyed()&&Date.now()<deadline)await new Promise(r=>setTimeout(r,50));
-   const size=e.clipboard.readImage().getSize();if(!capture.isDestroyed()||size.width!==expected.width||size.height!==expected.height)throw Error('软件内截图编辑或剪贴板输出失败：'+JSON.stringify(size));state.captureClipboard=true;
+   const copied=await require('./haituo-clipboard').readImage(e),size=copied?.getSize()||{};if(!capture.isDestroyed()||size.width!==expected.width||size.height!==expected.height)throw Error('软件内截图编辑或剪贴板输出失败：'+JSON.stringify(size));state.captureClipboard=true;
   }finally{if(!capture.isDestroyed())capture.close();overlay=previous}
   return state;
  }finally{w.close()}}

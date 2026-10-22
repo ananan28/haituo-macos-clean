@@ -24948,7 +24948,7 @@ function saveHaituoTranslationCache() {
 }
 
 function haituoTranslationCacheKey(e) {
-    return JSON.stringify([ `free-ai-chat-v5`, e.provider || `google-free`, e.targetLanguage || `zh-CN`, String(e.text || ``).trim() ]);
+    return JSON.stringify([ `free-ai-chat-v5`, e.provider || `google-free`, e.targetLanguage || `zh-CN`, String(e.text || ``).trim(), ...(e.__haituoPool ? [e.endpoint||'',e.model||''] : []) ]);
 }
 
 function haituoSharedChatCacheKey(e) {
@@ -25253,9 +25253,9 @@ function tm() {
         sender.sendInputEvent({type:`keyUp`,keyCode:`Enter`});
         return true;
     }), p.ipcMain.removeHandler(`caisheng:set-translation-config`), p.ipcMain.handle(`caisheng:set-translation-config`, async (e, t) => (Jp(e.senderFrame?.url ?? ``), haituoApplyTranslationConfig({ ...$p(), ...t, ...(typeof t?.darkTheme === `boolean` && !t?.nativeTheme ? {nativeTheme:t.darkTheme ? `dark` : `light`} : {}) }))), p.ipcMain.removeHandler(`caisheng:get-translation-config`), p.ipcMain.handle(`caisheng:get-translation-config`, e => (Jp(e.senderFrame?.url ?? ``), 
-    ({ ...$p(), ...HaituoLastTranslationStatus }))), p.ipcMain.removeHandler(`caisheng:read-clipboard-image`), p.ipcMain.handle(`caisheng:read-clipboard-image`, e => {
+    ({ ...$p(), ...HaituoLastTranslationStatus }))), p.ipcMain.removeHandler(`caisheng:read-clipboard-image`), p.ipcMain.handle(`caisheng:read-clipboard-image`, async e => {
         Jp(e.senderFrame?.url ?? ``);
-        const image = p.clipboard.readImage();
+        const image = await require('../js/haituo-clipboard.js').readImage(p);
         if (!image || image.isEmpty()) return null;
         const png = image.toPNG();
         if (!png?.length || png.length > 32 * 1024 * 1024) return null;
@@ -25304,7 +25304,7 @@ function tm() {
     }), p.ipcMain.removeHandler(`caisheng:webview-replace-text`), p.ipcMain.handle(`caisheng:webview-replace-text`, async (e, t) => {
         Jp(e.senderFrame?.url ?? ``);
         if (typeof t !== `string` || !t.trim() || t.length > 3e4) throw Error(`译文无效`);
-        let n = p.clipboard.readText();
+        let n = await p.clipboard.readText();
         try {
             e.sender.focus(), e.sender.sendInputEvent({
                 type: `keyDown`,
@@ -25320,12 +25320,12 @@ function tm() {
             }), e.sender.sendInputEvent({
                 type: `keyUp`,
                 keyCode: `Backspace`
-            }), p.clipboard.writeText(t), e.sender.paste(), await new Promise(e => setTimeout(e, 120));
+            }), await p.clipboard.writeText(t), e.sender.paste(), await new Promise(e => setTimeout(e, 120));
             return {
                 ok: !0
             };
         } finally {
-            p.clipboard.writeText(n);
+            await p.clipboard.writeText(n);
         }
     }), p.ipcMain.removeHandler(`caisheng:activate-voice-control`), p.ipcMain.handle(`caisheng:activate-voice-control`, async (e, t) => {
         Jp(e.senderFrame?.url ?? ``);

@@ -599,7 +599,7 @@ http://jedwatson.github.io/classnames
             },
             caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},
             caishengStartScreenshot() {return u.ipcRenderer.invoke('haituo:start-screenshot')},
-            caishengSettingsVisibility(open) {u.ipcRenderer.send('haituo:settings-visibility',!!open)},
+            caishengSettingsVisibility(open,owner='inline') {u.ipcRenderer.send('haituo:settings-visibility',!!open,owner)},
             caishengOnCloseSettings(callback) {const handler=()=>callback();u.ipcRenderer.on('haituo:close-settings',handler);return()=>u.ipcRenderer.removeListener('haituo:close-settings',handler)},
             caishengShowSettingsWindow() {
                 return u.ipcRenderer.invoke(`caisheng:show-settings-window`);
@@ -209132,6 +209132,12 @@ function haituoCachedSignalTranslation(text) {
     function aor({disabled: e, text: t, onApplyTranslation: n, onSendTranslation: r}) {
         let [a, o] = (0, l6.useState)(x_), [s, c] = (0, l6.useState)(!1), [l, u] = (0, l6.useState)(!1), [d, f] = (0, 
         l6.useState)(``), [p, m] = (0, l6.useState)(!1), [v, y] = (0, l6.useState)(``), [haituoQuickText, haituoSetQuickText] = (0, l6.useState)(``), haituoQuickInputRef = (0, l6.useRef)(null), haituoQuickSpaceRef = (0, l6.useRef)({ count: 0, at: 0 });
+        (0,l6.useEffect)(()=>{
+            window.SignalContext.caishengSettingsVisibility?.(s,'composer');
+            if(!s)return;
+            const off=window.SignalContext.caishengOnCloseSettings?.(()=>{document.activeElement?.blur?.();c(false)});
+            return()=>{off?.();window.SignalContext.caishengSettingsVisibility?.(false,'composer')};
+        },[s]);
         (0, l6.useEffect)(() => {
             window.SignalContext.caishengGetTranslationConfig().then(config => {
                 if (config && typeof config === `object`) o(current => ({ ...current, ...config, openAIModel: config.model ?? current.openAIModel, compatibleEndpoint: config.endpoint ?? current.compatibleEndpoint }));

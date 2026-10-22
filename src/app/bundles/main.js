@@ -28665,12 +28665,12 @@ function haituoCloseAllSettings(){
     if(haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
 }
 function haituoSettingsVisibility(open,owner='main'){
-    if($u!=='signal-main'){process.send?.({type:'haituo-settings-visibility',open});return}
+    if($u!=='signal-main'){process.send?.({type:'haituo-settings-visibility',open,owner});return}
     if(open)haituoSettingsOwners.add(owner);else haituoSettingsOwners.delete(owner);
     if(open&&!haituoOwnEscape&&!p.globalShortcut.isRegistered('Escape'))try{haituoOwnEscape=p.globalShortcut.register('Escape',haituoCloseAllSettings)}catch{}
     if(!haituoSettingsOwners.size&&haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
 }
-p.ipcMain.on('haituo:settings-visibility',(event,open)=>{try{Jp(event.senderFrame?.url||event.sender?.getURL()||'');haituoSettingsVisibility(open)}catch{}});
+p.ipcMain.on('haituo:settings-visibility',(event,open,owner)=>{try{Jp(event.senderFrame?.url||event.sender?.getURL()||'');haituoSettingsVisibility(open,owner==='composer'?'composer':'inline')}catch{}});
 p.ipcMain.handle('haituo:start-screenshot',event=>{Jp(event.senderFrame?.url||'');if($u!=='signal-main'){process.send?.({type:'haituo-start-screenshot'});return{ok:true}}haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start(),250);return{ok:true}});
 p.app.on('will-quit',()=>{if(haituoOwnEscape)p.globalShortcut.unregister('Escape')});
 
@@ -28913,7 +28913,7 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`æ–°å
             return;
         }
         if(Yg.get(t)===r&&e?.type==='haituo-close-settings'){haituoCloseAllSettings();return}
-        if(Yg.get(t)===r&&e?.type==='haituo-settings-visibility'){haituoSettingsVisibility(e.open,t);return}
+        if(Yg.get(t)===r&&e?.type==='haituo-settings-visibility'){haituoSettingsVisibility(e.open,t+':'+(e.owner==='composer'?'composer':'inline'));return}
         if(Yg.get(t)===r&&e?.type==='haituo-start-screenshot'){haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start(),250);return}
         if(Yg.get(t)===r&&e?.type===`haituo-show-settings-panel`){haituoShowSettingsWindow().catch(error=>X.warn(String(error)));return}
         if (Yg.get(t) === r && e?.type === `haituo-global-settings-request`) {

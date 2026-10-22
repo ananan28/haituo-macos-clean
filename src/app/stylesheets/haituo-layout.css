@@ -48,3 +48,23 @@
 /* Custom badge is text, can be hidden, and must not stretch the account bar. */
 .HaituoBrand strong em{max-width:180px;white-space:nowrap;text-overflow:ellipsis;flex-shrink:1}
 .HaituoBrand strong em:empty{display:none!important}
+
+/* Advanced settings live inside the navigation shell; override navigation-sized buttons. */
+[data-haituo-advanced-settings]{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;color:var(--haituo-fg,#202124)}
+[data-haituo-advanced-settings] strong{display:block!important;margin:16px 0 8px!important;font-size:16px!important;line-height:1.4!important}
+[data-haituo-advanced-settings] small{display:block!important;white-space:normal!important;line-height:1.6!important;font-size:12px!important;margin:8px 0 12px!important;overflow-wrap:break-word!important}
+[data-haituo-advanced-settings] button{position:static!important;display:flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;height:auto!important;min-height:40px!important;margin:12px 0!important;padding:10px 14px!important;border-radius:8px!important;white-space:nowrap!important;word-break:normal!important;overflow-wrap:normal!important;font-size:14px!important;line-height:20px!important;flex:none!important}
+[data-haituo-advanced-settings] fieldset{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;border-radius:8px!important}
+[data-haituo-advanced-settings] label:has(input[type=checkbox]){display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;margin:12px 0!important}
+[data-haituo-advanced-settings] input[type=checkbox]{width:20px!important;height:20px!important;flex:0 0 20px!important;order:2}
+[data-haituo-advanced-settings] textarea{display:block!important;width:100%!important;min-height:100px!important;max-width:100%!important;box-sizing:border-box!important;resize:vertical!important;border:1px solid var(--haituo-edge,#cbd5e1)!important;border-radius:8px!important;padding:10px!important;background:var(--haituo-field,#f3f4f6)!important;color:var(--haituo-fg,#202124)!important;-webkit-text-fill-color:var(--haituo-fg,#202124)!important;font:inherit!important}
+.CaishengPlatformShell__settings .HaituoTranslationStatus{background:var(--haituo-field,#f3f4f6)!important;color:var(--haituo-fg,#202124)!important;border-color:var(--haituo-edge,#cbd5e1)!important}
+.CaishengPlatformShell__settings .HaituoTranslationStatus strong{color:inherit!important;-webkit-text-fill-color:currentColor!important}
+[data-haituo-advanced-settings] details{display:block!important;margin:14px 0!important;padding:12px!important;border:1px solid var(--haituo-edge,#cbd5e1)!important;border-radius:8px!important;background:var(--haituo-field,#f3f4f6)!important}
+[data-haituo-advanced-settings] summary{display:list-item!important;cursor:pointer!important;font-weight:600!important;line-height:1.5!important;white-space:normal!important}
+[data-haituo-advanced-settings] select{display:block!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;min-height:38px!important}
+.HaituoSettingsGroup{display:block!important;width:100%!important;box-sizing:border-box!important;margin:14px 0!important;padding:12px!important;border:1px solid var(--haituo-edge,#cbd5e1)!important;border-radius:8px!important;background:var(--haituo-field,#f3f4f6)!important}
+.HaituoSettingsGroup summary{display:list-item!important;cursor:pointer!important;font-weight:600!important;line-height:1.5!important}
+.HaituoSettingsGroup>label{display:flex!important;flex-direction:column!important;gap:6px!important;margin:12px 0!important;min-width:0!important}
+.HaituoSettingsGroup :is(input:not([type=checkbox]),select,textarea){width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.HaituoSettingsGroup button{width:100%!important;min-height:40px!important;height:auto!important;white-space:nowrap!important;margin:10px 0!important;padding:10px!important;position:static!important}

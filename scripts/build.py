@@ -68,8 +68,11 @@ def prepare(target):
         if path.name in ['tar','@isaacs','chownr','minipass','minizlib','yallist']:
             if path.is_dir():
                 shutil.copytree(path, nested/path.name, dirs_exist_ok=True)
+    if target == 'macos':
+        run(['swiftc','-O',app/'native/haituo-ocr.swift','-o',app/'native/haituo-ocr'])
     if target == 'windows':
         run([sys.executable,'scripts/prepare-windows.py'])
+    run(['node','scripts/test-native-ocr.cjs',app])
     pkgpath=app/'package.json'
     pkg=json.loads(pkgpath.read_text(encoding='utf-8'))
     if target=='windows': pkg['version']=CFG['versions'][target]
@@ -90,7 +93,7 @@ def windows(app, tools):
         'protocols':[{'name':'Haituo Signal verification','schemes':['sgnl','signalcaptcha']}],
         'directories':{'app':str(app),'output':'windows/out'},
         'electronVersion':CFG['tools']['electron'],'npmRebuild':False,
-        'asar':True,'asarUnpack':['**/*.node','**/*.dll','native/*.exe'],
+        'asar':True,'asarUnpack':['**/*.node','**/*.dll','native/*.exe','native/*.ps1'],
         'win':{'target':[{'target':'nsis','arch':['x64']}],
                'icon':str(app/'build/icons/win/icon.ico'),'signAndEditExecutable':False},
         'nsis':{'oneClick':False,'perMachine':False,'allowToChangeInstallationDirectory':True,
@@ -119,7 +122,7 @@ def macos(app, tools):
          '--platform=darwin','--arch=arm64','--electron-version='+CFG['tools']['electron'],
          '--app-version='+version,'--build-version='+version,'--icon='+str(icon),
          '--app-bundle-id=com.haituo.desktop','--out=macos/out','--overwrite',
-         '--asar.unpack=**/*.node','--extend-info=macos/Info.plist'])
+         '--asar.unpack={**/*.node,native/haituo-ocr}','--extend-info=macos/Info.plist'])
     bundle = ROOT/'macos/out/海拓-darwin-arm64/海拓.app'
     p = bundle/'Contents/Info.plist'
     info = plistlib.loads(p.read_bytes());info['LSUIElement']=True;info.pop('LSBackgroundOnly',None)

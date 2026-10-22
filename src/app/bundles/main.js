@@ -24800,29 +24800,8 @@ async function Xp(e) {
                 target_lang: r
             })
         }, a))?.translations?.[0]?.text?.trim() ?? ``;
-    } else if (r === `google-cloud`) {
-        if (typeof e.apiKey != `string` || !e.apiKey.trim()) throw Error(`Google Cloud 需要 API Key`);
-        let r = new URL(`https://translation.googleapis.com/language/translate/v2`);
-        r.searchParams.set(`key`, e.apiKey.trim()), o = (await Yp(r.href, {
-            method: `POST`,
-            headers: {
-                "Content-Type": `application/json`
-            },
-            body: JSON.stringify({
-                q: t,
-                target: n,
-                format: `text`
-            })
-        }, a))?.data?.translations?.[0]?.translatedText?.trim() ?? ``, o = o.replace(/&quot;/gu, `"`).replace(/&#39;|&#x27;/gu, `'`).replace(/&lt;/gu, `<`).replace(/&gt;/gu, `>`).replace(/&amp;/gu, `&`);
-    } else if (r === `google-free`) {
-        let e = new URL(`https://translate.googleapis.com/translate_a/single`);
-        e.search = new URLSearchParams({
-            client: `gtx`,
-            sl: `auto`,
-            tl: n,
-            dt: `t`,
-            q: t
-        }).toString(), o = ((await Yp(e.href, {}, a))?.[0] ?? []).map(e => typeof e?.[0] == `string` ? e[0] : ``).join(``).trim();
+    } else if ([`google-cloud`,`google-free`].includes(r)) {
+        o = await require('../js/haituo-google.js').translateGoogle(Yp,{text:t,target:n,provider:r,apiKey:e.googleCloudApiKey||e.apiKey||'',timeout:a});
     } else if (r === `mymemory`) {
         if (!/[\u3400-\u9fff]/u.test(t) && n !== `zh-CN`) throw Error(`MyMemory 仅作为中英翻译备用`);
         let e = /[\u3400-\u9fff]/u.test(t) ? `zh-CN` : `en`, r = new URL(`https://api.mymemory.translated.net/get`);
@@ -25113,7 +25092,7 @@ async function haituoTranslateWithMode(config, request) {
                 ...request,
                 provider,
                 timeoutMs: HaituoNetwork.translationTimeout(provider, request.text, config.timeoutMs),
-                apiKey: provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : route.apiKey,
+                apiKey: provider === `google-cloud` ? (config.googleCloudApiKey || config.apiKey) : provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : route.apiKey,
                 endpoint: provider === `groq` ? `https://api.groq.com/openai/v1` : route.endpoint,
                 model: provider === `groq` ? `openai/gpt-oss-120b` : route.model
             };
@@ -25216,6 +25195,7 @@ function $p() {
 
 function rmRefresh(e, t) {
     if (t.type !== `keyDown`) return;
+    if (haituoShortcutRecording) return;
     if (t.key === 'Escape') {
         if ($u !== 'signal-main') process.send?.({type:'haituo-close-settings'});
         else haituoCloseAllSettings();
@@ -27576,6 +27556,8 @@ function haituoApplyTranslationConfig(t) {
         deepseekApiKeys: String(t?.deepseekApiKeys ?? $p().deepseekApiKeys ?? '').trim(),
         deepseekEndpoint: String(t?.deepseekEndpoint ?? $p().deepseekEndpoint ?? '').trim(),
         deepseekModel: String(t?.deepseekModel ?? $p().deepseekModel ?? '').trim(),
+        googleCloudApiKey: String(t?.googleCloudApiKey ?? $p().googleCloudApiKey ?? '').trim(),
+        screenshotTranslationProvider: ['ai','google-free','google-cloud'].includes(t?.screenshotTranslationProvider) ? t.screenshotTranslationProvider : ($p().screenshotTranslationProvider || 'ai'),
         screenshotEnabled: t?.screenshotEnabled !== false,
         screenshotShortcut: String(t?.screenshotShortcut || $p().screenshotShortcut || 'CommandOrControl+Alt+O'),
         screenshotEndpoint: String(t?.screenshotEndpoint ?? $p().screenshotEndpoint ?? '').trim(),
@@ -27590,7 +27572,7 @@ function haituoApplyTranslationConfig(t) {
         openaiVoiceModel: typeof t?.openaiVoiceModel===`string`?t.openaiVoiceModel.trim():$p().openaiVoiceModel,
         apiKey: typeof t?.apiKey == `string` ? t.apiKey.trim() : ``,
         openaiApiKeys: Array.isArray(t?.openaiApiKeys) ? t.openaiApiKeys.filter(key => typeof key === `string`).map(key => key.trim()).filter(Boolean).slice(0, 12) : Array.isArray($p().openaiApiKeys) ? $p().openaiApiKeys : [],
-        openaiApiProfiles: Array.isArray(t?.openaiApiProfiles) ? t.openaiApiProfiles.filter(profile => profile && typeof profile.apiKey === `string`).map(profile => ({ apiKey: profile.apiKey.trim(), endpoint: typeof profile.endpoint === `string` ? profile.endpoint.trim() : ``, model: typeof profile.model === `string` ? profile.model.trim() : ``, vision:profile.vision === true })).slice(0, 11) : Array.isArray($p().openaiApiProfiles) ? $p().openaiApiProfiles : [],
+        openaiApiProfiles: Array.isArray(t?.openaiApiProfiles) ? t.openaiApiProfiles.filter(profile => profile && typeof profile.apiKey === `string`).map(profile => ({ apiKey: profile.apiKey.trim(), endpoint: typeof profile.endpoint === `string` ? profile.endpoint.trim() : ``, model: typeof profile.model === `string` ? profile.model.trim() : ``, vision:profile.vision === true, service:typeof profile.service==='string'?profile.service:'custom' })).slice(0, 11) : Array.isArray($p().openaiApiProfiles) ? $p().openaiApiProfiles : [],
         groqApiKey: typeof t?.groqApiKey == `string` ? t.groqApiKey.trim() : ``,
         deepLApiKey: typeof t?.deepLApiKey == `string` ? t.deepLApiKey.trim() : ``,
         kepplApiKey: typeof t?.kepplApiKey == `string` ? t.kepplApiKey.trim() : ``,
@@ -28656,7 +28638,14 @@ p.ipcMain.handle(`caisheng:edit-account-label`, async (e, t) => {
 
 let caishengSettingsWindow;
 const haituoSettingsOwners=new Set();
-let haituoOwnEscape=false;
+let haituoOwnEscape=false, haituoShortcutRecording=false, haituoShortcutRecordingTimer;
+function haituoSetShortcutRecording(active){
+    if($u!=='signal-main'){haituoShortcutRecording=!!active;process.send?.({type:'haituo-shortcut-recording',active});return}
+    clearTimeout(haituoShortcutRecordingTimer);haituoShortcutRecording=!!active;
+    if(active){if(haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}haituoScreenshotController?.pauseShortcut();haituoShortcutRecordingTimer=setTimeout(()=>haituoSetShortcutRecording(false),30000)}
+    else{haituoScreenshotController?.resumeShortcut();if(haituoSettingsOwners.size)haituoSettingsVisibility(true,[...haituoSettingsOwners][0])}
+}
+p.ipcMain.handle('haituo:shortcut-recording',(event,active)=>{Jp(event.senderFrame?.url||'');haituoSetShortcutRecording(active);return{ok:true}});
 function haituoCloseAllSettings(){
     caishengSettingsWindow?.close();
     Z?.webContents?.send('haituo:close-settings');
@@ -28667,7 +28656,7 @@ function haituoCloseAllSettings(){
 function haituoSettingsVisibility(open,owner='main'){
     if($u!=='signal-main'){process.send?.({type:'haituo-settings-visibility',open,owner});return}
     if(open)haituoSettingsOwners.add(owner);else haituoSettingsOwners.delete(owner);
-    if(open&&!haituoOwnEscape&&!p.globalShortcut.isRegistered('Escape'))try{haituoOwnEscape=p.globalShortcut.register('Escape',haituoCloseAllSettings)}catch{}
+    if(open&&!haituoShortcutRecording&&!haituoOwnEscape&&!p.globalShortcut.isRegistered('Escape'))try{haituoOwnEscape=p.globalShortcut.register('Escape',haituoCloseAllSettings)}catch{}
     if(!haituoSettingsOwners.size&&haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
 }
 p.ipcMain.on('haituo:settings-visibility',(event,open,owner)=>{try{Jp(event.senderFrame?.url||event.sender?.getURL()||'');haituoSettingsVisibility(open,owner==='composer'?'composer':'inline')}catch{}});
@@ -28724,7 +28713,7 @@ async function haituoShowSettingsWindow() {
 *{box-sizing:border-box}html,body{margin:0;height:100%;font:14px "Microsoft YaHei UI",sans-serif}body{border-radius:12px;overflow:hidden}.title{-webkit-app-region:drag;height:46px;display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:800}.title button{-webkit-app-region:no-drag;margin-left:auto;width:32px;height:32px;padding:0;font-size:20px}.scroll{height:calc(100% - 102px);overflow:auto;padding:12px 14px;scrollbar-color:#a77b29 #0b0905}.intro{padding:9px 11px;border-radius:8px;margin-bottom:10px}.section{margin:14px 0 7px;padding-bottom:5px;font-weight:800}.row{display:flex;gap:8px;align-items:center;margin:9px 0}.row.column{display:flex;flex-direction:column;align-items:stretch}.row>span:first-child{min-width:118px;}.check{display:flex;gap:8px;align-items:center;margin:9px 0}.check input{width:18px;height:18px;}input,select,button{min-height:34px;border-radius:7px;padding:5px 8px;outline:none}input:focus,select:focus{}.grow{flex:1;min-width:0}.colors{display:grid;grid-template-columns:1fr 126px;gap:8px;width:100%}input[type=color]{width:100%;padding:2px}.rainbow{font-weight:800;}.footer{height:56px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 14px;}.primary{font-weight:900;}.muted{}.fontValue{min-width:40px;text-align:right}</style><style>
 body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}.scroll{flex:1;min-height:0;height:auto;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#888 transparent}.footer{flex:0 0 56px}.scroll::-webkit-scrollbar{width:12px}.scroll::-webkit-scrollbar-thumb{background:#888;border-radius:8px;border:3px solid transparent;background-clip:padding-box}.scroll::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}[hidden]{display:none!important}
 </style><style id="haituo-native-settings">${haituoNativeSettingsCss($p().nativeTheme)}</style></head><body>
-<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.4.1 · Signal / WhatsApp / Telegram 通用</div></div>
+<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.4.2 · Signal / WhatsApp / Telegram 通用</div></div>
 <label class="check"><input type="checkbox" name="hideTranslationBox">隐藏输入框翻译工具栏</label>
 <label class="check"><input type="checkbox" name="autoTranslateIncoming">接收回译</label>
 <label class="check"><input type="checkbox" name="backTranslationEnabled">发送回译</label>
@@ -28912,6 +28901,7 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`新�
             }
             return;
         }
+        if(Yg.get(t)===r&&e?.type==='haituo-shortcut-recording'){haituoSetShortcutRecording(e.active);return}
         if(Yg.get(t)===r&&e?.type==='haituo-close-settings'){haituoCloseAllSettings();return}
         if(Yg.get(t)===r&&e?.type==='haituo-settings-visibility'){haituoSettingsVisibility(e.open,t+':'+(e.owner==='composer'?'composer':'inline'));return}
         if(Yg.get(t)===r&&e?.type==='haituo-start-screenshot'){haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start(),250);return}
@@ -30753,12 +30743,21 @@ async function haituoTestSettingsSync() {
             const readyDeadline=Date.now()+45000;
             while(!await Z.webContents.executeJavaScript(`!!document.querySelector('.CaishengPlatformShell__settingsButton')`)&&Date.now()<readyDeadline)await delay(150);
             await Z.webContents.executeJavaScript(`(()=>{if(!document.querySelector('.CaishengPlatformShell__settings'))document.querySelector('.CaishengPlatformShell__settingsButton').click()})()`);await delay(350);
+            const drawerCheck=await Z.webContents.executeJavaScript(`({allApisCollapsed:[...document.querySelectorAll('.CaishengPlatformShell__settings input[type=password]')].every(el=>el.closest('details')&&!el.closest('details').open),backupCollapsed:!document.querySelector('[data-haituo-api-drawer]').open})`);check(drawerCheck.allApisCollapsed&&drawerCheck.backupCollapsed,'API settings are not collapsed into drawers');
+            await Z.webContents.executeJavaScript(`document.querySelector('[data-haituo-shot-drawer]').open=true`);await delay(150);
             const fields=await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__settings [data-haituo-setting]')].map(el=>el.dataset.haituoSetting)`);
             check(['screenshotShortcut','screenshotEndpoint','screenshotApiKey','screenshotModel','deepseekModel'].every(name=>fields.includes(name)),'Actual inline settings controls are missing');
-            await Z.webContents.executeJavaScript(`(()=>{const el=document.querySelector('[data-haituo-setting="screenshotShortcut"]');el.focus();el.value='Control+Alt+P';el.dispatchEvent(new FocusEvent('focusout',{bubbles:true}))})()`);await delay(300);
+            const advancedLayout=await Z.webContents.executeJavaScript(`(()=>{const panel=document.querySelector('[data-haituo-advanced-settings]');return {buttons:[...panel.querySelectorAll('button')].filter(el=>el.getClientRects().length).map(el=>({text:el.textContent,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,whiteSpace:getComputedStyle(el).whiteSpace})),notes:[...panel.querySelectorAll('small')].filter(el=>el.getClientRects().length).map(el=>({display:getComputedStyle(el).display,width:el.getBoundingClientRect().width}))}})()`);
+            check(advancedLayout.buttons.every(button=>button.width>=200&&button.height>=36&&button.whiteSpace==='nowrap'),'Advanced settings buttons are squeezed or wrapping vertically');
+            check(advancedLayout.notes.every(note=>note.display==='block'&&note.width>=200),'Advanced settings explanation is not on its own row');
+            stages.push({source:'actual-advanced-settings-layout',...advancedLayout,drawerCheck,ok:true});
+            await Z.webContents.executeJavaScript(`(()=>{const el=document.querySelector('[data-haituo-setting="screenshotShortcut"]');el.focus()})()`);await delay(300);
+            await Z.webContents.executeJavaScript(`document.querySelector('[data-haituo-setting="screenshotShortcut"]').dispatchEvent(new KeyboardEvent('keydown',{key:'p',ctrlKey:true,altKey:true,bubbles:true,cancelable:true}))`);await delay(350);
             check($p().screenshotShortcut==='Control+Alt+P','Inline shortcut change was not saved');
+            await Z.webContents.executeJavaScript(`document.querySelector('[data-haituo-api-drawer]').open=true`);await delay(150);
             await Z.webContents.executeJavaScript(`[...document.querySelectorAll('.CaishengPlatformShell__settings button')].find(el=>el.textContent==='＋ 添加备用 API / 模型').click()`);await delay(300);
             check(await Z.webContents.executeJavaScript(`!!document.querySelector('[data-haituo-setting="backup-0-model"]')`),'Blank backup API row disappeared before entry');
+            const services=await Z.webContents.executeJavaScript(`[...document.querySelector('[aria-label="备用服务商"]').options].map(el=>el.value)`);check(['openai','deepseek','groq','qwen','glm','openrouter','custom'].every(value=>services.includes(value)),'Backup provider choices are missing');
             haituoApplyTranslationConfig({...$p(),screenshotShortcut:original.screenshotShortcut||'CommandOrControl+Alt+O',openaiApiProfiles:original.openaiApiProfiles||[]});
             rmRefresh({preventDefault(){}},{type:'keyDown',key:'Escape'});await delay(250);
             check(!await Z.webContents.executeJavaScript(`!!document.querySelector('.CaishengPlatformShell__settings')`),'Escape from main input did not close inline settings');
@@ -31158,6 +31157,6 @@ if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TES
 }
 
 if ($u === 'signal-main') p.app.whenReady().then(() => {
-    haituoScreenshotController = require('../js/haituo-screenshot.js').createController({electron:p,getConfig:$p,requestJSON:Yp});
+    haituoScreenshotController = require('../js/haituo-screenshot.js').createController({electron:p,getConfig:$p,requestJSON:Yp,openSettings:async()=>{Z?.show();Z?.focus();await Z?.webContents.executeJavaScript(`(()=>{if(!document.querySelector('.CaishengPlatformShell__settings'))document.querySelector('.CaishengPlatformShell__settingsButton')?.click();setTimeout(()=>{document.querySelectorAll('[data-haituo-shot-drawer],[data-haituo-shot-api-drawer]').forEach(el=>el.open=true);document.querySelector('[data-haituo-setting="screenshotApiKey"]')?.scrollIntoView({block:'center'})},250)})()`)}});
     try { haituoScreenshotController.configure($p()); } catch (error) { X.warn('截图快捷键注册失败：'+error.message); }
 });

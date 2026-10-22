@@ -598,6 +598,7 @@ http://jedwatson.github.io/classnames
                 return u.ipcRenderer.invoke(`caisheng:edit-account-label`, e);
             },
             caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},
+            caishengShortcutRecording(active) {return u.ipcRenderer.invoke('haituo:shortcut-recording',!!active)},
             caishengStartScreenshot() {return u.ipcRenderer.invoke('haituo:start-screenshot')},
             caishengSettingsVisibility(open,owner='inline') {u.ipcRenderer.send('haituo:settings-visibility',!!open,owner)},
             caishengOnCloseSettings(callback) {const handler=()=>callback();u.ipcRenderer.on('haituo:close-settings',handler);return()=>u.ipcRenderer.removeListener('haituo:close-settings',handler)},
@@ -21497,6 +21498,7 @@ http://jedwatson.github.io/classnames
     }
     function haituoProviderConfigured(settings, provider) {
         if ([ `google-free`, `mymemory`, `auto`, `smart-retranslate` ].includes(provider)) return !0;
+        if (provider === `google-cloud`) return !!settings.googleCloudApiKey?.trim?.() || !!settings.apiKey?.trim?.();
         if (provider === `groq`) return !!settings.groqApiKey?.trim?.();
         if (provider === `deepl`) return !!settings.deepLApiKey?.trim?.();
         if (provider === `libre`) return !!settings.libreEndpoint?.trim?.();
@@ -21505,6 +21507,29 @@ http://jedwatson.github.io/classnames
         if (provider === `openai`) return !!settings.apiKey?.trim?.() || !!settings.openaiApiProfiles?.some?.(profile => profile?.apiKey?.trim?.());
         return !!settings.apiKey?.trim?.();
     }
+    function haituoGroupedSettings(F, props){
+        const groups={api:[],appearance:[],shortcuts:[]},rest=[];
+        const words=node=>{if(typeof node==='string')return node;if(Array.isArray(node))return node.map(words).join(' ');if(!node||typeof node!=='object')return '';return String(node.props?.['aria-label']||'')+' '+words(node.props?.children)};
+        const list=Array.isArray(props.children)?props.children:[props.children];
+        for(const node of list){
+            if(!node){rest.push(node);continue}
+            if(node.props?.['data-haituo-advanced-settings']){rest.push(node);continue}
+            const label=words(node);
+            if(/API|密钥|模型|接口|Endpoint|LibreTranslate 服务地址|微软翻译区域/i.test(label))groups.api.push(node);
+            else if(/快捷键/.test(label))groups.shortcuts.push(node);
+            else if(/外观|字体|颜色|气泡|恢复默认颜色/.test(label))groups.appearance.push(node);
+            else rest.push(node);
+        }
+        const drawer=(name,title)=>groups[name].length?F.jsxs('details',{className:'HaituoSettingsGroup','data-haituo-settings-group':name,children:[F.jsx('summary',{children:title}),...groups[name]]},name):null;
+        return F.jsxs('div',{...props,children:[...rest,drawer('api','文字翻译与音转文 · API 接口配置'),drawer('shortcuts','其他快捷键'),drawer('appearance','聊天外观与颜色')]});
+    }
+
+    function haituoShortcutRecorder(F,cfg){
+        const original=cfg.screenshotShortcut||'CommandOrControl+Alt+O';
+        const finish=async el=>{if(el.dataset.recording!=='true')return;el.dataset.recording='false';try{await window.SignalContext.caishengShortcutRecording(false)}catch{}if(!el.value)el.value=original};
+        return F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px',margin:'10px 0'},children:[F.jsx('span',{children:'截图翻译快捷键（点击后按组合键）'}),F.jsx('input',{'aria-label':'截图翻译快捷键','data-haituo-setting':'screenshotShortcut',readOnly:true,defaultValue:original,style:{width:'100%',boxSizing:'border-box',cursor:'pointer'},onFocus:async e=>{const el=e.currentTarget;try{await window.SignalContext.caishengShortcutRecording(true);if(!el.isConnected||document.activeElement!==el){await window.SignalContext.caishengShortcutRecording(false);return}el.dataset.recording='true';el.value='';el.placeholder='请按组合键，例如 Ctrl + Alt + O；Esc 取消'}catch(error){alert(String(error.message||error))}},onKeyDown:async e=>{e.preventDefault();e.stopPropagation();const el=e.currentTarget;if(el.dataset.recording!=='true')return;if(e.key==='Escape'){el.value=original;await finish(el);el.blur();return}if(['Control','Meta','Alt','Shift'].includes(e.key)||e.repeat)return;let key=e.key;if(key===' ')key='Space';else if(key==='+')key='Plus';else if(key==='-')key='Minus';else if(key.length===1)key=key.toUpperCase();else key=({ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Delete:'Delete',Backspace:'Backspace',Enter:'Return',Tab:'Tab'})[key]||key;const mods=[];if(e.metaKey)mods.push(window.SignalContext.OS?.platform==='darwin'?'Command':'Super');if(e.ctrlKey)mods.push('Control');if(e.altKey)mods.push('Alt');if(e.shiftKey)mods.push('Shift');if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&!/^F\d{1,2}$/.test(key)){el.placeholder='需要 Ctrl、Command、Alt 组合键，或 F1–F24';return}const accelerator=[...mods,key].join('+');try{await window.SignalContext.caishengSetTranslationConfig({screenshotShortcut:accelerator});el.value=accelerator;await finish(el);el.blur()}catch(error){el.value=original;await finish(el);el.blur();alert(String(error.message||error))}},onBlur:e=>{finish(e.currentTarget)}})]});
+    }
+
     let haituoProfileSaveQueue=Promise.resolve();
     function haituoAdvancedSettingsControls(F, cfg) {
         const commit = delta => window.SignalContext.caishengSetTranslationConfig(delta).catch(error => alert(String(error.message || error)));
@@ -21512,8 +21537,9 @@ http://jedwatson.github.io/classnames
         const updateProfiles=operation=>{haituoProfileSaveQueue=haituoProfileSaveQueue.catch(()=>{}).then(async()=>{const current=await window.SignalContext.caishengGetTranslationConfig();return window.SignalContext.caishengSetTranslationConfig({openaiApiProfiles:operation(Array.isArray(current.openaiApiProfiles)?current.openaiApiProfiles:[])})}).catch(error=>alert(String(error.message||error)))};
         const editProfile=(index,delta)=>updateProfiles(rows=>rows.map((p,i)=>i===index?{...p,...delta}:p));
         const profiles=Array.isArray(cfg.openaiApiProfiles)?cfg.openaiApiProfiles:[];
-        const rows=profiles.map((profile,index)=>F.jsxs('fieldset',{style:{margin:'10px 0',padding:'10px',border:'1px solid #666'},children:[F.jsx('legend',{children:'备用接口 '+(index+1)}),...['apiKey','endpoint','model'].map(field=>text('backup-'+index+'-'+field,{apiKey:'备用 API 密钥',endpoint:'备用 API 地址',model:'备用模型名称'}[field],'',field==='apiKey'?'password':'text',profile[field],value=>editProfile(index,{[field]:value}))),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:!!profile.vision,onChange:e=>editProfile(index,{vision:e.target.checked})}),F.jsx('span',{children:'支持图片，供截图翻译调度'})]}),F.jsx('button',{type:'button',onClick:()=>updateProfiles(rows=>rows.filter((_,i)=>i!==index)),children:'删除此接口'})]},index));
-        return F.jsxs('section',{'data-haituo-advanced-settings':'true',children:[F.jsx('hr',{}),F.jsx('strong',{children:'截图翻译与全局快捷键'}),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:cfg.screenshotEnabled!==false,onChange:e=>commit({screenshotEnabled:e.target.checked})}),F.jsx('span',{children:'启用全局截图翻译'})]}),text('screenshotShortcut','截图翻译快捷键','CommandOrControl+Alt+O','text',cfg.screenshotShortcut||'CommandOrControl+Alt+O'),F.jsx('small',{children:'在其他软件中也可用。修改字段后移开焦点即保存；Mac 首次使用需允许屏幕录制。'}),text('screenshotEndpoint','截图 API 地址','留空沿用主接口'),text('screenshotApiKey','截图 API 密钥','留空沿用主接口','password'),text('screenshotModel','截图识图模型','必须支持图片输入'),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot().catch(error=>alert(String(error.message||error))),children:'立即截图翻译'}),F.jsx('hr',{}),F.jsx('strong',{children:'备用 API 与模型调度'}),F.jsx('small',{children:'每条接口独立配置地址、密钥及模型。连续失败后切换下一条；支持 OpenAI 兼容接口。'}),...rows,F.jsx('button',{type:'button',disabled:profiles.length>=11,onClick:()=>updateProfiles(rows=>[...rows,{apiKey:'',endpoint:'',model:'',vision:false}]),children:'＋ 添加备用 API / 模型'}),F.jsx('hr',{}),F.jsx('strong',{children:'DeepSeek 独立配置'}),text('deepseekApiKey','DeepSeek API 密钥','','password'),text('deepseekEndpoint','DeepSeek API 地址','https://api.deepseek.com/v1'),text('deepseekModel','DeepSeek 模型','deepseek-flash'),text('deepseekApiKeys','额外 DeepSeek 密钥（一行一条）','','textarea')]});
+        const presets={openai:{label:'OpenAI / 兼容接口',endpoint:'https://api.openai.com/v1'},deepseek:{label:'DeepSeek',endpoint:'https://api.deepseek.com/v1'},groq:{label:'Groq',endpoint:'https://api.groq.com/openai/v1'},qwen:{label:'Qwen / 通义千问',endpoint:''},glm:{label:'GLM / 智谱',endpoint:''},openrouter:{label:'OpenRouter',endpoint:''},custom:{label:'自定义 OpenAI 兼容接口',endpoint:''}};
+        const rows=profiles.map((profile,index)=>F.jsxs('fieldset',{style:{margin:'10px 0',padding:'10px',border:'1px solid #666'},children:[F.jsx('legend',{children:'备用接口 '+(index+1)}),F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px'},children:[F.jsx('span',{children:'服务商 / 接口类型'}),F.jsxs('select',{'aria-label':'备用服务商',value:profile.service||'custom',onChange:e=>editProfile(index,{service:e.target.value,endpoint:presets[e.target.value].endpoint||profile.endpoint||''}),children:Object.entries(presets).map(([value,p])=>F.jsx('option',{value,children:p.label},value))})]}),...['apiKey','endpoint','model'].map(field=>text('backup-'+index+'-'+field,{apiKey:'备用 API 密钥',endpoint:'备用 API 地址',model:'备用模型名称'}[field],'',field==='apiKey'?'password':'text',profile[field],value=>editProfile(index,{[field]:value}))),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:!!profile.vision,onChange:e=>editProfile(index,{vision:e.target.checked})}),F.jsx('span',{children:'支持图片，供截图翻译调度'})]}),F.jsx('button',{type:'button',onClick:()=>updateProfiles(rows=>rows.filter((_,i)=>i!==index)),children:'删除此接口'})]},index));
+        return F.jsxs('section',{'data-haituo-advanced-settings':'true',children:[F.jsxs('details',{'data-haituo-shot-drawer':'true',children:[F.jsx('summary',{children:'截图翻译与全局快捷键'}),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:cfg.screenshotEnabled!==false,onChange:e=>commit({screenshotEnabled:e.target.checked})}),F.jsx('span',{children:'启用全局截图翻译'})]}),haituoShortcutRecorder(F,cfg),F.jsxs('label',{children:[F.jsx('span',{children:'截图翻译方式（默认双语对照）'}),F.jsxs('select',{'aria-label':'截图翻译方式','data-haituo-setting':'screenshotTranslationProvider',value:cfg.screenshotTranslationProvider||'ai',onChange:e=>commit({screenshotTranslationProvider:e.target.value}),children:[F.jsx('option',{value:'ai',children:'AI 识图与翻译'}),F.jsx('option',{value:'google-free',children:'本地识字 + Google 免密钥翻译（非官方）'}),F.jsx('option',{value:'google-cloud',children:'本地识字 + Google Cloud 官方 API'})]})]}),F.jsx('small',{children:'在其他软件中也可用。修改字段后移开焦点即保存；Mac 首次使用需允许屏幕录制。'}),F.jsxs('details',{'data-haituo-shot-api-drawer':'true',children:[F.jsx('summary',{children:'截图识图接口（可沿用已配置接口）'}),text('screenshotEndpoint','截图 API 地址','留空沿用主接口'),text('screenshotApiKey','截图 API 密钥','留空沿用主接口','password'),text('screenshotModel','截图识图模型','必须支持图片输入')]}),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot().catch(error=>alert(String(error.message||error))),children:'立即截图翻译'})]}),F.jsxs('details',{'data-haituo-api-drawer':'true',children:[F.jsx('summary',{children:'备用 AI 接口与模型（已配置 '+profiles.filter(p=>p.apiKey).length+' 条）'}),F.jsx('small',{children:'支持多个服务商和自定义模型，每条独立填写地址、密钥及模型；截图备用需勾选支持图片。'}),...rows,F.jsx('button',{type:'button',disabled:profiles.length>=11,onClick:()=>updateProfiles(rows=>[...rows,{apiKey:'',endpoint:'',model:'',vision:false,service:'custom'}]),children:'＋ 添加备用 API / 模型'})]}),F.jsxs('details',{'data-haituo-google-drawer':'true',children:[F.jsx('summary',{children:'Google 翻译 · 免费与官方付费 API'}),F.jsx('small',{children:'免密钥模式无需配置，使用非官方接口，可能限流。官方 API 使用 Google Cloud 独立密钥，需启用 Cloud Translation API 与结算；额度及费用以 Google 为准。聊天、输入和截图可分别选择。截图的 Google 模式使用系统本地 OCR，仅上传识别文字；Windows 需安装对应 OCR 语言包。'}),text('googleCloudApiKey','Google Cloud 专用 API Key','Google Cloud Translation API Key','password'),F.jsx('small',{children:'官方地址固定为 translation.googleapis.com/language/translate/v2，无需填写模型。不会覆盖 OpenAI 等服务的密钥。'})]}),F.jsxs('details',{'data-haituo-deepseek-drawer':'true',children:[F.jsx('summary',{children:'DeepSeek 主接口专用配置（可选）'}),F.jsx('small',{children:'备用接口不限于 DeepSeek。仅当你选择 DeepSeek 作为翻译服务时，使用此独立主接口配置。'}),text('deepseekApiKey','DeepSeek API 密钥','','password'),text('deepseekEndpoint','DeepSeek API 地址','https://api.deepseek.com/v1'),text('deepseekModel','DeepSeek 模型','deepseek-flash'),text('deepseekApiKeys','额外 DeepSeek 密钥（一行一条）','','textarea')]})]});
     }
 
     function haituoProviderOptionLabel(settings, provider, label) {
@@ -209347,7 +209373,7 @@ function haituoCachedSignalTranslation(text) {
                     onClick: () => void haituoQuickTranslate(!0),
                     children: l ? `重译中…` : `AI重译`
                 }) ]
-            }), s ? (0, u6.jsxs)(`div`, {
+            }), s ? haituoGroupedSettings(u6, {
                 className: `CaishengComposerTranslator__settings`,
                 children: [ (0, u6.jsxs)(`select`, {
                     "aria-label": `输入翻译服务`,
@@ -209357,7 +209383,7 @@ function haituoCachedSignalTranslation(text) {
                     }),
                     children: [ (0, u6.jsx)(`option`, {
                         value: `google-free`,
-                        children: `输入翻译：Google 免费 + AI 润色（默认）`
+                        children: `输入翻译：Google 免密钥 + AI 润色（非官方，默认）`
                     }), (0, u6.jsx)(`option`, {
                         value: `groq`,
                         children: haituoProviderOptionLabel(a, `groq`, `Groq gpt-oss-120b`)
@@ -209391,7 +209417,7 @@ function haituoCachedSignalTranslation(text) {
                     }) ]
                 }), (0, u6.jsxs)(`select`, {
                     "aria-label": `聊天消息翻译服务`, value: a.chatTranslationProvider ?? `google-free`, onChange: e => h({ chatTranslationProvider: e.target.value }),
-                    children: [ (0, u6.jsx)(`option`, { value: `google-free`, children: `聊天翻译：Google 免费 + AI 润色（默认）` }), (0, u6.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(a, `openai`, `聊天翻译：OpenAI`) }), (0, u6.jsx)(`option`, { value: `deepl`, children: haituoProviderOptionLabel(a, `deepl`, `聊天翻译：DeepL`) }), (0, u6.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(a, `groq`, `聊天翻译：Groq AI`) }) ]
+                    children: [ (0, u6.jsx)(`option`, { value: `google-free`, children: `聊天翻译：Google 免密钥 + AI 润色（非官方，默认）` }), (0, u6.jsx)(`option`, { value: `google-cloud`, children: haituoProviderOptionLabel(a, `google-cloud`, `聊天翻译：Google Cloud 官方 API`) }), (0, u6.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(a, `openai`, `聊天翻译：OpenAI`) }), (0, u6.jsx)(`option`, { value: `deepl`, children: haituoProviderOptionLabel(a, `deepl`, `聊天翻译：DeepL`) }), (0, u6.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(a, `groq`, `聊天翻译：Groq AI`) }) ]
                 }), (0, u6.jsxs)(`select`, {
                     "aria-label": `语音转文字服务`, value: a.voiceTranscriptionProvider ?? `groq`, onChange: e => h({ voiceTranscriptionProvider: e.target.value }),
                     children: [ (0, u6.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(a, `groq`, `音转文：Groq Whisper`) }), (0, u6.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(a, `openai`, `音转文：OpenAI Whisper`) }), (0, u6.jsx)(`option`, { value: `keppl`, children: haituoProviderOptionLabel(a, `keppl`, `音转文：Keppl Whisper`) }) ]
@@ -230490,7 +230516,7 @@ function haituoCachedSignalTranslation(text) {
                         type: `button`,
                         children: `新增 Telegram 账号`
                     }) ]
-                }) : null, u ? (0, O9.jsxs)(`div`, {
+                }) : null, u ? haituoGroupedSettings(O9, {
                     className: `CaishengPlatformShell__settings`,
                     onClick: e => e.stopPropagation(),
                     children: [ (0, O9.jsx)(`button`, {
@@ -230502,7 +230528,7 @@ function haituoCachedSignalTranslation(text) {
                         children: `›`
                     }), (0, O9.jsxs)(`div`, {
                         style: { padding: `9px 11px`, borderRadius: `8px`, background: `#1b160d`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `13px`, lineHeight: `1.45` },
-                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.4.1` }) ]
+                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.4.2` }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`input`, {
                             type: `checkbox`, checked: !!m.hideTranslationBox,
@@ -230579,7 +230605,7 @@ function haituoCachedSignalTranslation(text) {
                             }),
                             children: [ (0, O9.jsx)(`option`, {
                                 value: `google-free`,
-                                children: `Google 免费 + AI 润色（默认）`
+                                children: `Google 免密钥 + AI 润色（非官方，默认）`
                             }), (0, O9.jsx)(`option`, {
                                 value: `groq`,
                                 children: haituoProviderOptionLabel(m, `groq`, `Groq AI`)
@@ -230609,7 +230635,7 @@ function haituoCachedSignalTranslation(text) {
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`span`, { children: `聊天消息翻译服务` }), (0, O9.jsxs)(`select`, {
                             value: m.chatTranslationProvider ?? `google-free`, onChange: e => N({ chatTranslationProvider: e.target.value }),
-                            children: [ (0, O9.jsx)(`option`, { value: `google-free`, children: `Google 免费 + AI 润色（默认）` }), (0, O9.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(m, `openai`, `OpenAI`) }), (0, O9.jsx)(`option`, { value: `deepl`, children: haituoProviderOptionLabel(m, `deepl`, `DeepL`) }), (0, O9.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(m, `groq`, `Groq AI`) }), (0, O9.jsx)(`option`, { value: `deepseek`, children: haituoProviderOptionLabel(m, `deepseek`, `DeepSeek`) }), (0, O9.jsx)(`option`, { value: `google-cloud`, children: haituoProviderOptionLabel(m, `google-cloud`, `Google Cloud`) }), (0, O9.jsx)(`option`, { value: `mymemory`, children: `MyMemory 免费口语翻译` }) ]
+                            children: [ (0, O9.jsx)(`option`, { value: `google-free`, children: `Google 免密钥 + AI 润色（非官方，默认）` }), (0, O9.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(m, `openai`, `OpenAI`) }), (0, O9.jsx)(`option`, { value: `deepl`, children: haituoProviderOptionLabel(m, `deepl`, `DeepL`) }), (0, O9.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(m, `groq`, `Groq AI`) }), (0, O9.jsx)(`option`, { value: `deepseek`, children: haituoProviderOptionLabel(m, `deepseek`, `DeepSeek`) }), (0, O9.jsx)(`option`, { value: `google-cloud`, children: haituoProviderOptionLabel(m, `google-cloud`, `Google Cloud`) }), (0, O9.jsx)(`option`, { value: `mymemory`, children: `MyMemory 免费口语翻译` }) ]
                         }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`span`, { children: `语音转文字服务` }), (0, O9.jsxs)(`select`, {
@@ -230622,6 +230648,7 @@ function haituoCachedSignalTranslation(text) {
                         (0,O9.jsxs)(`label`,{children:[(0,O9.jsx)(`span`,{children:`OpenAI 音转文模型`}),(0,O9.jsx)(`input`,{"aria-label":`OpenAI 音转文模型`,placeholder:`gpt-4o-mini-transcribe（兼容服务可填 whisper-1）`,value:m.openaiVoiceModel??``,onChange:e=>N({openaiVoiceModel:e.target.value})})]}),
                         (0,O9.jsx)(`small`,{children:`音转文使用以上地址、密钥和语音模型。修改后保存；留空模型时自动尝试 mini-transcribe 和 whisper-1。`})
                     ]}):null,(0, O9.jsxs)(`div`, {
+                        className: `HaituoTranslationStatus`,
                         style: { marginTop: `6px`, padding: `8px 10px`, borderRadius: `7px`, background: `#19150e`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `12px`, lineHeight: `1.5` },
                         children: [ (0, O9.jsx)(`strong`, { children: `当前选择：${m.chatTranslationProvider || `google-free`}；上次译文来源：` }), m.lastTranslationProvider ? `${({ "free-ai-natural": `AI 润色（Google 对照）`, "google-free": `Google 免费翻译`, mymemory: `MyMemory 免费备用`, groq: `Groq`, openai: `OpenAI`, deepl: `DeepL`, "google-cloud": `Google Cloud`, libre: `LibreTranslate`, microsoft: `微软翻译`, qwen: `Qwen`, glm: `GLM`, deepseek: `DeepSeek` })[m.lastTranslationProvider] ?? m.lastTranslationProvider}${m.lastTranslationCached ? `（缓存，无新请求）` : ``}${m.lastTranslationFallbackFrom ? `（${m.lastTranslationFallbackFrom} 失败后备用：${m.lastTranslationFallbackReason || `原因未知`}）` : ``}${Number.isFinite(m.lastTranslationMs) ? ` · ${m.lastTranslationMs}ms` : ``}` : `尚未执行翻译` ]
                     }), [ m.inputTranslationProvider, m.chatTranslationProvider, m.voiceTranscriptionProvider ].includes(`groq`) ? (0, O9.jsxs)(`label`, {

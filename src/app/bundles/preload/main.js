@@ -598,6 +598,9 @@ http://jedwatson.github.io/classnames
                 return u.ipcRenderer.invoke(`caisheng:edit-account-label`, e);
             },
             caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},
+            caishengStartScreenshot() {return u.ipcRenderer.invoke('haituo:start-screenshot')},
+            caishengSettingsVisibility(open) {u.ipcRenderer.send('haituo:settings-visibility',!!open)},
+            caishengOnCloseSettings(callback) {const handler=()=>callback();u.ipcRenderer.on('haituo:close-settings',handler);return()=>u.ipcRenderer.removeListener('haituo:close-settings',handler)},
             caishengShowSettingsWindow() {
                 return u.ipcRenderer.invoke(`caisheng:show-settings-window`);
             },
@@ -21501,6 +21504,14 @@ http://jedwatson.github.io/classnames
         if (provider === `openai`) return !!settings.apiKey?.trim?.() || !!settings.openaiApiProfiles?.some?.(profile => profile?.apiKey?.trim?.());
         return !!settings.apiKey?.trim?.();
     }
+    function haituoAdvancedSettingsControls(F, cfg) {
+        const commit = delta => window.SignalContext.caishengSetTranslationConfig(delta).catch(error => alert(String(error.message || error)));
+        const text = (key,label,placeholder='',type='text',value=cfg[key],save=v=>commit({[key]:v})) => F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px',margin:'10px 0'},children:[F.jsx('span',{children:label}),F.jsx(type==='textarea'?'textarea':'input',{'aria-label':label,'data-haituo-setting':key,type:type==='textarea'?undefined:type,rows:type==='textarea'?4:undefined,defaultValue:value??'',placeholder,onBlur:e=>{if(e.target.value!==(value??''))save(e.target.value)},style:{width:'100%',minWidth:0,boxSizing:'border-box'}})]},key);
+        const profiles=Array.isArray(cfg.openaiApiProfiles)?cfg.openaiApiProfiles:[];
+        const rows=profiles.map((profile,index)=>F.jsxs('fieldset',{style:{margin:'10px 0',padding:'10px',border:'1px solid #666'},children:[F.jsx('legend',{children:'备用接口 '+(index+1)}),...['apiKey','endpoint','model'].map(field=>text('backup-'+index+'-'+field,{apiKey:'备用 API 密钥',endpoint:'备用 API 地址',model:'备用模型名称'}[field],'',field==='apiKey'?'password':'text',profile[field],value=>commit({openaiApiProfiles:profiles.map((p,i)=>i===index?{...p,[field]:value}:p)}))),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:!!profile.vision,onChange:e=>commit({openaiApiProfiles:profiles.map((p,i)=>i===index?{...p,vision:e.target.checked}:p)})}),F.jsx('span',{children:'支持图片，供截图翻译调度'})]}),F.jsx('button',{type:'button',onClick:()=>commit({openaiApiProfiles:profiles.filter((_,i)=>i!==index)}),children:'删除此接口'})]},index+'-'+JSON.stringify(profile)));
+        return F.jsxs('section',{'data-haituo-advanced-settings':'true',children:[F.jsx('hr',{}),F.jsx('strong',{children:'截图翻译与全局快捷键'}),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:cfg.screenshotEnabled!==false,onChange:e=>commit({screenshotEnabled:e.target.checked})}),F.jsx('span',{children:'启用全局截图翻译'})]}),text('screenshotShortcut','截图翻译快捷键','CommandOrControl+Alt+O','text',cfg.screenshotShortcut||'CommandOrControl+Alt+O'),F.jsx('small',{children:'在其他软件中也可用。修改字段后移开焦点即保存；Mac 首次使用需允许屏幕录制。'}),text('screenshotEndpoint','截图 API 地址','留空沿用主接口'),text('screenshotApiKey','截图 API 密钥','留空沿用主接口','password'),text('screenshotModel','截图识图模型','必须支持图片输入'),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot().catch(error=>alert(String(error.message||error))),children:'立即截图翻译'}),F.jsx('hr',{}),F.jsx('strong',{children:'备用 API 与模型调度'}),F.jsx('small',{children:'每条接口独立配置地址、密钥及模型。连续失败后切换下一条；支持 OpenAI 兼容接口。'}),...rows,F.jsx('button',{type:'button',disabled:profiles.length>=11,onClick:()=>commit({openaiApiProfiles:[...profiles,{apiKey:'',endpoint:'',model:'',vision:false}]}),children:'＋ 添加备用 API / 模型'}),F.jsx('hr',{}),F.jsx('strong',{children:'DeepSeek 独立配置'}),text('deepseekApiKey','DeepSeek API 密钥','','password'),text('deepseekEndpoint','DeepSeek API 地址','https://api.deepseek.com/v1'),text('deepseekModel','DeepSeek 模型','deepseek-flash'),text('deepseekApiKeys','额外 DeepSeek 密钥（一行一条）','','textarea')]});
+    }
+
     function haituoProviderOptionLabel(settings, provider, label) {
         return haituoProviderConfigured(settings, provider) ? `${label}（已配置）` : `${label}（需配置）`;
     }
@@ -209374,7 +209385,7 @@ function haituoCachedSignalTranslation(text) {
                 }), (0, u6.jsxs)(`select`, {
                     "aria-label": `语音转文字服务`, value: a.voiceTranscriptionProvider ?? `groq`, onChange: e => h({ voiceTranscriptionProvider: e.target.value }),
                     children: [ (0, u6.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(a, `groq`, `音转文：Groq Whisper`) }), (0, u6.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(a, `openai`, `音转文：OpenAI Whisper`) }), (0, u6.jsx)(`option`, { value: `keppl`, children: haituoProviderOptionLabel(a, `keppl`, `音转文：Keppl Whisper`) }) ]
-                }), [ a.inputTranslationProvider, a.chatTranslationProvider, a.voiceTranscriptionProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, u6.jsx)(`input`, {
+                }), haituoAdvancedSettingsControls(u6,a), [ a.inputTranslationProvider, a.chatTranslationProvider, a.voiceTranscriptionProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, u6.jsx)(`input`, {
                     "aria-label": `翻译 API Key`,
                     type: `password`,
                     value: a.apiKey,
@@ -229972,12 +229983,15 @@ function haituoCachedSignalTranslation(text) {
             }
         }), [qReady, qSetReady] = (0, D9.useState)([]), O = (0, D9.useRef)(null), k = (0, D9.useRef)(null), haituoRenameInputRef = (0, D9.useRef)(null);
         (0, D9.useEffect)(() => {
+            window.SignalContext.caishengSettingsVisibility?.(u);
             if (!u) return;
+            const closeRemote=()=>{d(!1);requestAnimationFrame(()=>A(o,0,!haituoHome))};
+            const off=window.SignalContext.caishengOnCloseSettings?.(closeRemote);
             const closeSettingsOnEscape = e => {
                 if (e.key !== `Escape`) return;
                 e.preventDefault(), e.stopPropagation(), d(!1), requestAnimationFrame(() => A(o, 0, !haituoHome));
             };
-            return document.addEventListener(`keydown`, closeSettingsOnEscape, !0), () => document.removeEventListener(`keydown`, closeSettingsOnEscape, !0);
+            return document.addEventListener(`keydown`, closeSettingsOnEscape, !0), () => {document.removeEventListener(`keydown`,closeSettingsOnEscape,!0);off?.();window.SignalContext.caishengSettingsVisibility?.(false)};
         }, [ u, o, haituoHome ]);
         (0, D9.useEffect)(() => {
             let stopped = false;
@@ -230477,7 +230491,7 @@ function haituoCachedSignalTranslation(text) {
                         children: `›`
                     }), (0, O9.jsxs)(`div`, {
                         style: { padding: `9px 11px`, borderRadius: `8px`, background: `#1b160d`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `13px`, lineHeight: `1.45` },
-                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.3.5` }) ]
+                        children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.4.1` }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`input`, {
                             type: `checkbox`, checked: !!m.hideTranslationBox,
@@ -230591,7 +230605,7 @@ function haituoCachedSignalTranslation(text) {
                             value: m.voiceTranscriptionProvider ?? `groq`, onChange: e => Q({ voiceTranscriptionProvider: e.target.value }),
                             children: [ (0, O9.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(m, `groq`, `Groq Whisper`) }), (0, O9.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(m, `openai`, `OpenAI Whisper`) }), (0, O9.jsx)(`option`, { value: `keppl`, children: haituoProviderOptionLabel(m, `keppl`, `Keppl Whisper`) }) ]
                         }) ]
-                    }), m.voiceTranscriptionProvider===`openai`?(0,O9.jsxs)(O9.Fragment,{children:[
+                    }), haituoAdvancedSettingsControls(O9,m), m.voiceTranscriptionProvider===`openai`?(0,O9.jsxs)(O9.Fragment,{children:[
                         (0,O9.jsxs)(`label`,{children:[(0,O9.jsx)(`span`,{children:`OpenAI 音转文 API Key`}),(0,O9.jsx)(`input`,{type:`password`,"aria-label":`OpenAI 音转文 API Key`,value:m.openaiVoiceApiKey??m.apiKey??``,onChange:e=>N({openaiVoiceApiKey:e.target.value})})]}),
                         (0,O9.jsxs)(`label`,{children:[(0,O9.jsx)(`span`,{children:`OpenAI 音转文 API 地址`}),(0,O9.jsx)(`input`,{"aria-label":`OpenAI 音转文 API 地址`,placeholder:`https://api.openai.com/v1`,value:m.openaiVoiceEndpoint??m.compatibleEndpoint??``,onChange:e=>N({openaiVoiceEndpoint:e.target.value})})]}),
                         (0,O9.jsxs)(`label`,{children:[(0,O9.jsx)(`span`,{children:`OpenAI 音转文模型`}),(0,O9.jsx)(`input`,{"aria-label":`OpenAI 音转文模型`,placeholder:`gpt-4o-mini-transcribe（兼容服务可填 whisper-1）`,value:m.openaiVoiceModel??``,onChange:e=>N({openaiVoiceModel:e.target.value})})]}),

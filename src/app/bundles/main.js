@@ -25216,6 +25216,10 @@ function $p() {
 
 function rmRefresh(e, t) {
     if (t.type !== `keyDown`) return;
+    if (t.key === 'Escape') {
+        if ($u !== 'signal-main') process.send?.({type:'haituo-close-settings'});
+        else haituoCloseAllSettings();
+    }
     let n = String(t.key ?? ``).toLowerCase(), r = String($p().refreshShortcut ?? $p().shortcut ?? `ctrl-r`).toLowerCase(), a = r === `ctrl-r` && t.control && !t.shift && n === `r` || r === `ctrl-shift-r` && t.control && t.shift && n === `r` || r === `f5` && n === `f5`;
     a && (e.preventDefault(), $u === `signal-main` ? Z?.webContents.send(`caisheng:refresh-current`) : caishengSoftRefreshWindow());
 }
@@ -27586,7 +27590,7 @@ function haituoApplyTranslationConfig(t) {
         openaiVoiceModel: typeof t?.openaiVoiceModel===`string`?t.openaiVoiceModel.trim():$p().openaiVoiceModel,
         apiKey: typeof t?.apiKey == `string` ? t.apiKey.trim() : ``,
         openaiApiKeys: Array.isArray(t?.openaiApiKeys) ? t.openaiApiKeys.filter(key => typeof key === `string`).map(key => key.trim()).filter(Boolean).slice(0, 12) : Array.isArray($p().openaiApiKeys) ? $p().openaiApiKeys : [],
-        openaiApiProfiles: Array.isArray(t?.openaiApiProfiles) ? t.openaiApiProfiles.filter(profile => profile && typeof profile.apiKey === `string`).map(profile => ({ apiKey: profile.apiKey.trim(), endpoint: typeof profile.endpoint === `string` ? profile.endpoint.trim() : ``, model: typeof profile.model === `string` ? profile.model.trim() : ``, vision:profile.vision === true })).filter(profile => profile.apiKey).slice(0, 11) : Array.isArray($p().openaiApiProfiles) ? $p().openaiApiProfiles : [],
+        openaiApiProfiles: Array.isArray(t?.openaiApiProfiles) ? t.openaiApiProfiles.filter(profile => profile && typeof profile.apiKey === `string`).map(profile => ({ apiKey: profile.apiKey.trim(), endpoint: typeof profile.endpoint === `string` ? profile.endpoint.trim() : ``, model: typeof profile.model === `string` ? profile.model.trim() : ``, vision:profile.vision === true })).slice(0, 11) : Array.isArray($p().openaiApiProfiles) ? $p().openaiApiProfiles : [],
         groqApiKey: typeof t?.groqApiKey == `string` ? t.groqApiKey.trim() : ``,
         deepLApiKey: typeof t?.deepLApiKey == `string` ? t.deepLApiKey.trim() : ``,
         kepplApiKey: typeof t?.kepplApiKey == `string` ? t.kepplApiKey.trim() : ``,
@@ -27901,6 +27905,7 @@ function caishengSoftRefreshWindow() {
 let caishengParentHeartbeat = Date.now(), caishengOrphanExitStarted = !1;
 $u !== `signal-main` && (process.on(`message`, e => {
     if (!e || typeof e != `object`) return;
+    if(e.type==='haituo-close-settings-view'){Z?.webContents?.send('haituo:close-settings');return}
     if (e.type === `haituo-captcha-response` && typeof e.token === `string` && e.token.length > 0 && e.token.length < 32768) { p_.handleCaptcha(e.token); return; }
     if (e.type === `caisheng-edit-account-label-in-page`) {
         caishengParentHeartbeat = Date.now();
@@ -28650,6 +28655,24 @@ p.ipcMain.handle(`caisheng:edit-account-label`, async (e, t) => {
 });
 
 let caishengSettingsWindow;
+const haituoSettingsOwners=new Set();
+let haituoOwnEscape=false;
+function haituoCloseAllSettings(){
+    caishengSettingsWindow?.close();
+    Z?.webContents?.send('haituo:close-settings');
+    haituoSettingsOwners.clear();
+    for(const child of Yg.values())caishengSendChild(child,{type:'haituo-close-settings-view'});
+    if(haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
+}
+function haituoSettingsVisibility(open,owner='main'){
+    if($u!=='signal-main'){process.send?.({type:'haituo-settings-visibility',open});return}
+    if(open)haituoSettingsOwners.add(owner);else haituoSettingsOwners.delete(owner);
+    if(open&&!haituoOwnEscape&&!p.globalShortcut.isRegistered('Escape'))try{haituoOwnEscape=p.globalShortcut.register('Escape',haituoCloseAllSettings)}catch{}
+    if(!haituoSettingsOwners.size&&haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
+}
+p.ipcMain.on('haituo:settings-visibility',(event,open)=>{try{Jp(event.senderFrame?.url||event.sender?.getURL()||'');haituoSettingsVisibility(open)}catch{}});
+p.ipcMain.handle('haituo:start-screenshot',event=>{Jp(event.senderFrame?.url||'');if($u!=='signal-main'){process.send?.({type:'haituo-start-screenshot'});return{ok:true}}haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start(),250);return{ok:true}});
+p.app.on('will-quit',()=>{if(haituoOwnEscape)p.globalShortcut.unregister('Escape')});
 
 async function haituoShowSettingsWindow() {
     if(process.platform===`darwin`){
@@ -28696,12 +28719,12 @@ async function haituoShowSettingsWindow() {
         height,
         backgroundColor: `#080704`,
         webPreferences: { partition: `haituo-native-interface`, nodeIntegration: !1, contextIsolation: !0, sandbox: !0 }
-    }), place();
+    }), place();haituoSettingsVisibility(true,'native');
     const configJson = JSON.stringify({ ...$p(), brandBadgeText: HaituoNetwork.normalizeBadge($p().brandBadgeText), screenshotShortcut: $p().screenshotShortcut || 'CommandOrControl+Alt+O' }).replace(/</gu, `\\u003c`), html = `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;font:14px "Microsoft YaHei UI",sans-serif}body{border-radius:12px;overflow:hidden}.title{-webkit-app-region:drag;height:46px;display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:800}.title button{-webkit-app-region:no-drag;margin-left:auto;width:32px;height:32px;padding:0;font-size:20px}.scroll{height:calc(100% - 102px);overflow:auto;padding:12px 14px;scrollbar-color:#a77b29 #0b0905}.intro{padding:9px 11px;border-radius:8px;margin-bottom:10px}.section{margin:14px 0 7px;padding-bottom:5px;font-weight:800}.row{display:flex;gap:8px;align-items:center;margin:9px 0}.row.column{display:flex;flex-direction:column;align-items:stretch}.row>span:first-child{min-width:118px;}.check{display:flex;gap:8px;align-items:center;margin:9px 0}.check input{width:18px;height:18px;}input,select,button{min-height:34px;border-radius:7px;padding:5px 8px;outline:none}input:focus,select:focus{}.grow{flex:1;min-width:0}.colors{display:grid;grid-template-columns:1fr 126px;gap:8px;width:100%}input[type=color]{width:100%;padding:2px}.rainbow{font-weight:800;}.footer{height:56px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 14px;}.primary{font-weight:900;}.muted{}.fontValue{min-width:40px;text-align:right}</style><style>
 body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}.scroll{flex:1;min-height:0;height:auto;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#888 transparent}.footer{flex:0 0 56px}.scroll::-webkit-scrollbar{width:12px}.scroll::-webkit-scrollbar-thumb{background:#888;border-radius:8px;border:3px solid transparent;background-clip:padding-box}.scroll::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}[hidden]{display:none!important}
 </style><style id="haituo-native-settings">${haituoNativeSettingsCss($p().nativeTheme)}</style></head><body>
-<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.3.9 · Signal / WhatsApp / Telegram 通用</div></div>
+<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.4.1 · Signal / WhatsApp / Telegram 通用</div></div>
 <label class="check"><input type="checkbox" name="hideTranslationBox">隐藏输入框翻译工具栏</label>
 <label class="check"><input type="checkbox" name="autoTranslateIncoming">接收回译</label>
 <label class="check"><input type="checkbox" name="backTranslationEnabled">发送回译</label>
@@ -28797,7 +28820,7 @@ form.onsubmit=e=>{e.preventDefault();send('save')};const close=()=>send('close')
             if (action === 'save') caishengSettingsWindow?.close();
         } catch (error) { caishengSettingsWindow?.webContents.executeJavaScript(`document.getElementById('status').textContent=${JSON.stringify(String(error.message || error))}`).catch(()=>{}); }
     }), caishengSettingsWindow.once(`ready-to-show`, () => haituoRaiseOverlayWindow(caishengSettingsWindow)), caishengSettingsWindow.webContents.once(`did-finish-load`, () => haituoRaiseOverlayWindow(caishengSettingsWindow)), caishengSettingsWindow.once(`closed`, () => {
-        Z?.removeListener(`move`, place), Z?.removeListener(`resize`, place), Z?.removeListener(`minimize`, hideWithParent), Z?.removeListener(`hide`, hideWithParent), Z?.removeListener(`restore`, showWithParent), Z?.removeListener(`show`, showWithParent), Z?.removeListener(`closed`, closeWithParent), caishengSettingsWindow = void 0;
+        haituoSettingsVisibility(false,'native');Z?.removeListener(`move`, place), Z?.removeListener(`resize`, place), Z?.removeListener(`minimize`, hideWithParent), Z?.removeListener(`hide`, hideWithParent), Z?.removeListener(`restore`, showWithParent), Z?.removeListener(`show`, showWithParent), Z?.removeListener(`closed`, closeWithParent), caishengSettingsWindow = void 0;
     }), Z.on(`move`, place), Z.on(`resize`, place), Z.on(`minimize`, hideWithParent), Z.on(`hide`, hideWithParent), Z.on(`restore`, showWithParent), Z.on(`show`, showWithParent), Z.on(`closed`, closeWithParent), caishengSettingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).then(() => {
         haituoRaiseOverlayWindow(caishengSettingsWindow);
     }).catch(error => {X.warn(`Haituo native settings load failed: ${error?.code || `unknown`}`);caishengSettingsWindow?.close()});
@@ -28889,6 +28912,9 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`新�
             }
             return;
         }
+        if(Yg.get(t)===r&&e?.type==='haituo-close-settings'){haituoCloseAllSettings();return}
+        if(Yg.get(t)===r&&e?.type==='haituo-settings-visibility'){haituoSettingsVisibility(e.open,t);return}
+        if(Yg.get(t)===r&&e?.type==='haituo-start-screenshot'){haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start(),250);return}
         if(Yg.get(t)===r&&e?.type===`haituo-show-settings-panel`){haituoShowSettingsWindow().catch(error=>X.warn(String(error)));return}
         if (Yg.get(t) === r && e?.type === `haituo-global-settings-request`) {
             try {
@@ -30723,6 +30749,7 @@ async function haituoTestSettingsSync() {
             const result=await HaituoNetwork.retryTranslation(()=>Yp('http://127.0.0.1:'+server.address().port+'/translation',{},5000));
             check(result.text==='local network recovery'&&requests===2,'Chromium retry transport failed');
             stages.push({source:'chromium-network-recovery',requests,ok:true});
+            const screenshotUI=await haituoScreenshotController.verifyUI();stages.push({source:'actual-screenshot-ui-session',...screenshotUI,ok:true});
         } finally { await new Promise(resolve=>server.close(resolve)); }
         const launch=p.ipcMain._invokeHandlers.get('caisheng:launch-signal-profile');
         for(const id of ids){await launch({senderFrame:{url:'file:///settings-fixture'}},id);const deadline=Date.now()+60000;while(!Xg.has(id)&&Date.now()<deadline)await delay(200);check(Xg.has(id),'Settings child did not become ready');await request(id)}

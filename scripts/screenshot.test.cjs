@@ -19,7 +19,8 @@ test('shared settings have identical multi-entry primary/backup services and aut
  walk(ctx.haituoPoolControls(F,cfg));walk(ctx.haituoAdvancedSettingsControls(F,cfg));
  const primary=nodes.find(n=>n['aria-label']==='主翻译服务商'),backup=nodes.find(n=>n['aria-label']==='备用翻译服务商');assert.deepEqual(primary.children.map(c=>c.value),backup.children.map(c=>c.value));
  primary.onChange({target:{value:'deepseek'}});await vm.runInContext('haituoPoolSaveQueue',ctx);assert.equal(cfg.translationPools.primary[0].endpoint,'https://api.deepseek.com/v1');assert.equal(cfg.translationPools.primary[0].model,'deepseek-flash');assert.equal(cfg.translationPools.primary[0].apiKey,'');assert.equal(cfg.translationPools.backup[0].apiKey,'backup');
- for(const field of ['screenshotShortcut','screenshotCopyShortcut','screenshots-0-model'])assert.ok(nodes.some(n=>n['data-haituo-setting']===field),field);
+ for(const field of ['screenshotShortcut','screenshotCopyShortcut'])assert.ok(nodes.some(n=>n['data-haituo-setting']===field),field);
+ assert.ok(nodes.some(n=>n.children==='＋ 添加免费 Google 截图翻译（无需 API）'));assert.equal(nodes.filter(n=>n.type==='checkbox').filter(n=>n.checked===true).length,0);
  const field=nodes.find(n=>n['data-haituo-setting']==='screenshotCopyShortcut'),el={dataset:{},isConnected:true,value:'',blur(){}};ctx.document.activeElement=el;await field.onFocus({currentTarget:el});await field.onKeyDown({currentTarget:el,key:'t',ctrlKey:true,altKey:true,preventDefault(){},stopPropagation(){}});assert.equal(updates.at(-1).screenshotCopyShortcut,'Control+Alt+T');assert.equal(field.readOnly,true);
 });
 test('screenshot UI uses a separate session from Signal protocol interception',()=>{const source=fs.readFileSync(__dirname+'/../src/app/js/haituo-screenshot.js','utf8');assert.match(source,/partition:'haituo-screenshot-ui'/);assert.match(main,/actual-screenshot-ui-session/);});
@@ -51,3 +52,30 @@ test('primary pool exhausts before backup; next request returns to primary and n
 test('native capture mode is separate from translation and validates PNG before writing clipboard',()=>{const source=fs.readFileSync(__dirname+'/../src/app/js/haituo-screenshot.js','utf8'),html=fs.readFileSync(__dirname+'/../src/app/js/haituo-screenshot.html','utf8');assert.match(source,/captureOnly=options.mode==='capture'/);assert.match(source,/await require\('\.\/haituo-clipboard'\).writeImage\(e,png\)/);assert.match(source,/event.sender!==overlay.webContents/);assert.match(html,/if\(captureOnly\).*setTool\('move'\)/);assert.match(html,/context.drawImage\(editor/);assert.match(html,/commands.pop\(\)/);});
 
 test('Electron 44 clipboard writes and reads actual PNG blobs asynchronously',async()=>{const {writeImage,readImage}=require('../src/app/js/haituo-clipboard');const bytes=Buffer.from('fixture png');let stored;class Item{constructor(data){this.data=data;this.types=Object.keys(data)}async getType(type){return this.data[type]}}const e={ClipboardItem:Item,clipboard:{write:async items=>{stored=items},read:async()=>stored},nativeImage:{createFromBuffer:buffer=>({buffer})}};await writeImage(e,{toPNG:()=>bytes});assert.equal(stored[0].types[0],'image/png');assert.deepEqual((await readImage(e)).buffer,bytes);});
+
+test('empty screenshot pool remains usable for free OCR translation without a key',()=>{
+ const {screenshotRoutes}=require('../src/app/js/haituo-screenshot');
+ assert.equal(screenshotRoutes({})[0].provider,'google-free');assert.equal(screenshotRoutes({screenshotApiPool:[]})[0].provider,'google-free');
+ assert.equal(screenshotRoutes({screenshotApiPool:[{provider:'openai',apiKey:'own'}]})[0].apiKey,'own');
+ assert.equal(screenshotRoutes({screenshotApiPool:[{provider:'openai',enabled:false}]}).length,0);
+});
+test('both shortcuts default off, enable independently and restore only enabled registrations',()=>{
+ const {EventEmitter}=require('node:events'),{createController}=require('../src/app/js/haituo-screenshot'),registered=new Map();
+ const electron={ipcMain:{handle(){},on(){}},app:new EventEmitter(),globalShortcut:{register(k,f){registered.set(k,f);return true},unregister(k){registered.delete(k)}}};
+ const c=createController({electron,getConfig:()=>({})});c.configure({});assert.equal(registered.size,0);
+ c.configure({screenshotCopyEnabled:true});assert.deepEqual([...registered.keys()],['CommandOrControl+Alt+S']);c.pauseShortcut();assert.equal(registered.size,0);c.resumeShortcut();assert.equal(registered.size,1);
+ c.configure({screenshotEnabled:true,screenshotCopyEnabled:false});assert.deepEqual([...registered.keys()],['CommandOrControl+Alt+O']);c.configure({});assert.equal(registered.size,0);
+});
+test('ordinary capture uses full cursor monitor without activating or cropping Haituo',async()=>{
+ const {EventEmitter}=require('node:events'),{createController}=require('../src/app/js/haituo-screenshot');let windowOptions,sent;
+ class Window extends EventEmitter{constructor(o){super();windowOptions=o;this.webContents={setWindowOpenHandler(){},on(){},send(...v){sent=v}}}setVisibleOnAllWorkspaces(){}async loadFile(){}isDestroyed(){return false}show(){}focus(){}}
+ const electron={BrowserWindow:Window,app:new EventEmitter(),ipcMain:{handle(){},on(){}},screen:{getCursorScreenPoint:()=>({x:2000,y:50}),getDisplayNearestPoint(p){assert.equal(p.x,2000);return{id:2,bounds:{x:1920,y:0,width:2560,height:1440},scaleFactor:2}}},desktopCapturer:{async getSources(){return[{display_id:'2',thumbnail:{isEmpty:()=>false,toDataURL:()=> 'data:image/png;base64,full-screen',crop(){throw Error('must not crop')}}}]}},globalShortcut:{}};
+ const controller=createController({electron,getConfig:()=>({}),getAppWindow(){throw Error('must not focus Haituo')},requestJSON(){throw Error('capture must not translate')}});
+ await controller.start({mode:'capture'});assert.equal(windowOptions.x,1920);assert.equal(windowOptions.width,2560);assert.equal(windowOptions.height,1440);assert.equal(sent[1].mode,'capture');assert.equal(sent[1].image,'data:image/png;base64,full-screen');
+});
+test('four input/back-translation options collapse together and Save is last',()=>{
+ const renderer=fs.readFileSync(__dirname+'/../src/app/bundles/preload/main.js','utf8'),a=renderer.indexOf('    function haituoGroupedSettings('),b=renderer.indexOf('    let haituoPoolSaveQueue=',a),ctx={};vm.createContext(ctx);vm.runInContext(renderer.slice(a,b),ctx);
+ const F={jsx:(tag,props)=>({type:tag,props}),jsxs:(tag,props)=>({type:tag,props})},labels=['隐藏输入框翻译工具栏','接收回译','发送回译','群组回译'],save=F.jsx('button',{children:'保存设置'});
+ const tree=ctx.haituoGroupedSettings(F,{children:[save,...labels.map(label=>F.jsx('label',{children:label})),F.jsx('button',{children:'测试连接'}),F.jsx('label',{children:'气泡颜色'})]});
+ const children=tree.props.children,drawer=children.find(n=>n?.props?.['data-haituo-settings-group']==='backtranslation');assert.ok(drawer);assert.equal(drawer.props.open,undefined);assert.deepEqual(Array.from(drawer.props.children.slice(1),n=>n.props.children),labels);assert.equal(children.at(-1),save);
+});

@@ -25188,6 +25188,7 @@ function $p() {
         }
         e.nativeTheme = e.nativeTheme === `light` ? `light` : `dark`;
         delete e.waterInkTheme; delete e.waterInkBackgroundUrl; e.darkTheme = e.nativeTheme === `dark`;
+        if(!e._screenshotDefaultsV144){e.screenshotEnabled=false;e.screenshotCopyEnabled=false;e._screenshotDefaultsV144=true;em(e)}
         if(!e.translationPools&&!e._translationPoolsV143){e.translationPools=require('../js/haituo-translation-pools.js').fromLegacy(e);e._translationPoolsV143=true;em(e)}
         return e;
     } catch {
@@ -27560,7 +27561,8 @@ function haituoApplyTranslationConfig(t) {
         deepseekModel: String(t?.deepseekModel ?? $p().deepseekModel ?? '').trim(),
         googleCloudApiKey: String(t?.googleCloudApiKey ?? $p().googleCloudApiKey ?? '').trim(),
         screenshotTranslationProvider: ['ai','google-free','google-cloud'].includes(t?.screenshotTranslationProvider) ? t.screenshotTranslationProvider : ($p().screenshotTranslationProvider || 'ai'),
-        screenshotEnabled: t?.screenshotEnabled !== false,
+        screenshotEnabled: (t?.screenshotEnabled ?? $p().screenshotEnabled) === true,
+        screenshotCopyEnabled: (t?.screenshotCopyEnabled ?? $p().screenshotCopyEnabled) === true,
         translationPools: t?.translationPools===null?undefined:require('../js/haituo-translation-pools.js').sanitize(t?.translationPools ?? $p().translationPools),
         screenshotApiPool: t?.screenshotApiPool===null?undefined:Array.isArray(t?.screenshotApiPool)?require('../js/haituo-translation-pools.js').sanitize({primary:t.screenshotApiPool}).primary:$p().screenshotApiPool,
         screenshotCopyShortcut: String(t?.screenshotCopyShortcut || $p().screenshotCopyShortcut || 'CommandOrControl+Alt+S'),

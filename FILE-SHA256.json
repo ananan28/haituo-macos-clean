@@ -1,5 +1,5 @@
 {
-  ".github/workflows/build.yml": "f9f827ec077b0460609f4a11b209ef1575222039ae4f95309c135052a68bc57a",
+  ".github/workflows/build.yml": "d11663af857e7e7e850849eeadd4b530da7ebb34689512b90c846340b9bd7c29",
   ".gitignore": "ce7f45b26e3ed4e1ed6d50caf4c6d251a3f81f923ca7253291190b3e7078ee3a",
   "CHANGELOG-1.3.6.md": "1804139e3fa0c37dc08d821cc0cc664bdec58ac0d32ebac021c1097f3741800d",
   "CHANGELOG-1.3.7.md": "d08ff07d8eba5898c48f0af21b4102e0d70ef35251ba90c1d6f297d0cb4ceb4b",
@@ -132,7 +132,7 @@
   "src/app/bundles/dom/loading.js": "67f8e7655689285f654d73cd8568f53c3a35cace93c6818467fa8b5ddce1e12f",
   "src/app/bundles/dom/permissions.js": "54608b0151d309eb8408621ff78d46a7c0486171b09c0f4d0ae148a3af9ca093",
   "src/app/bundles/dom/screenShare.js": "3a93effd63b4882310413566aba13142aea88be76684a5de32fa94ba9ca9dce9",
-  "src/app/bundles/main.js": "705af40d07b881a562ade8d417009ff58724ef99f7eb6ea445bad3f2202fc7ab",
+  "src/app/bundles/main.js": "45c203119d67a29ab6aaac4042a3391e616a392cf53b78e2ae67877f59b26727",
   "src/app/bundles/preload/about.js": "a5b1566017c8e92504a70050868e1b807851a222305bb00af558c6c4a3a54bca",
   "src/app/bundles/preload/calldiagnostic.js": "645fbeaefe92347a97852bad3a0ac2e44b9b256b52cd9281f95eca698a54f7f6",
   "src/app/bundles/preload/debuglog.js": "a9271e350e0555d28b998b8aa1af4dc1275c7e6e30c1ca69f0e5965ed2629d3f",

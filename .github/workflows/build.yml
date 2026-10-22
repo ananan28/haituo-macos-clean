@@ -39,3 +39,13 @@ jobs:
             macos/out/*.dmg
             macos/verification/**
             source-packages/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo-${{ matrix.target }}-Installer
+          path: |
+            windows/out/*Setup.exe
+            macos/out/*.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo-${{ matrix.target }}-Source
+          path: source-packages/*.zip

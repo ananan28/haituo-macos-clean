@@ -28665,6 +28665,20 @@ function haituoSettingsVisibility(open,owner='main'){
     if(!haituoSettingsOwners.size&&haituoOwnEscape){p.globalShortcut.unregister('Escape');haituoOwnEscape=false}
 }
 p.ipcMain.on('haituo:settings-visibility',(event,open,owner)=>{try{Jp(event.senderFrame?.url||event.sender?.getURL()||'');haituoSettingsVisibility(open,owner==='composer'?'composer':'inline')}catch{}});
+p.ipcMain.handle('haituo:uninstall',async event=>{
+ Jp(event.senderFrame?.url||'');if($u!=='signal-main')throw Error('请在海拓主窗口的设置中操作卸载');
+ const answer=await p.dialog.showMessageBox(Z||undefined,{type:'warning',title:'彻底卸载海拓',message:'删除本机海拓全部数据并卸载？',detail:'包括所有账号、聊天记录、登录状态、密钥、设置、缓存、历史海拓程序。此操作无法恢复。独立安装的 Signal、WhatsApp 不在清理范围内。',buttons:['取消','彻底卸载'],defaultId:0,cancelId:0,noLink:true});if(answer.response!==1)return{cancelled:true};
+ try{p.app.setLoginItemSettings({openAtLogin:false})}catch{}
+ if(process.platform==='win32'){
+  const dir=(0,s.dirname)(process.execPath),file=(0,m.readdirSync)(dir).find(name=>/^Uninstall.*\.exe$/i.test(name));if(!file)throw Error('当前不是已安装目录，请先使用安装包安装，再从系统或设置执行彻底卸载');
+  const child=(0,c.spawn)((0,s.join)(dir,file),['/PURGE_DATA'],{detached:true,stdio:'ignore',windowsHide:true});await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject)});child.unref();
+ }else if(process.platform==='darwin'){
+  const marker='/Contents/MacOS/',at=process.execPath.lastIndexOf(marker);if(at<0)throw Error('请在已安装的海拓应用中卸载');
+  const folder=(0,m.mkdtempSync)((0,s.join)(p.app.getPath('temp'),'haituo-uninstall-')),script=(0,s.join)(folder,'uninstall.sh');(0,m.copyFileSync)((0,s.join)($,'native','haituo-uninstall-macos.sh'),script);
+  const child=(0,c.spawn)('/bin/sh',[script,process.execPath.slice(0,at)],{detached:true,stdio:'ignore'});await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject)});child.unref();
+ }else throw Error('当前系统暂不支持自动卸载');
+ setTimeout(()=>p.app.quit(),250);return{ok:true};
+});
 p.ipcMain.handle('haituo:start-screenshot',(event,mode)=>{Jp(event.senderFrame?.url||'');if($u!=='signal-main'){process.send?.({type:'haituo-start-screenshot',mode:mode==='capture'?'capture':'translate'});return{ok:true}}haituoCloseAllSettings();setTimeout(()=>haituoScreenshotController?.start({mode:mode==='capture'?'capture':'translate'}),250);return{ok:true}});
 p.app.on('will-quit',()=>{if(haituoOwnEscape)p.globalShortcut.unregister('Escape')});
 

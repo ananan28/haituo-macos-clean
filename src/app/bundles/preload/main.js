@@ -599,6 +599,7 @@ http://jedwatson.github.io/classnames
             },
             caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},
             caishengShortcutRecording(active) {return u.ipcRenderer.invoke('haituo:shortcut-recording',!!active)},
+            caishengUninstall() {return u.ipcRenderer.invoke('haituo:uninstall')} ,
             caishengStartScreenshot(mode) {return u.ipcRenderer.invoke('haituo:start-screenshot',mode)},
             caishengSettingsVisibility(open,owner='inline') {u.ipcRenderer.send('haituo:settings-visibility',!!open,owner)},
             caishengOnCloseSettings(callback) {const handler=()=>callback();u.ipcRenderer.on('haituo:close-settings',handler);return()=>u.ipcRenderer.removeListener('haituo:close-settings',handler)},
@@ -21526,7 +21527,7 @@ http://jedwatson.github.io/classnames
         }
         const drawer=(name,title,extra=[])=>groups[name].length||extra.length?F.jsxs('details',{className:'HaituoSettingsGroup','data-haituo-settings-group':name,children:[F.jsx('summary',{children:title}),...groups[name],...extra]},name):null;
         let configured;
-        if(advanced){const children=[].concat(advanced.props.children||[]),shot=children.find(n=>n?.props?.['data-haituo-shot-drawer']);configured=F.jsxs('section',{...advanced.props,children:[haituoPoolControls(F,props.haituoConfig||{}),shot,drawer('voice','音转文与 Groq 接口配置')]})}
+        if(advanced){const children=[].concat(advanced.props.children||[]),shot=children.find(n=>n?.props?.['data-haituo-shot-drawer']);configured=F.jsxs('section',{...advanced.props,children:[haituoPoolControls(F,props.haituoConfig||{}),shot,drawer('voice','音转文与 Groq 接口配置'),F.jsxs('details',{'data-haituo-uninstall':'true',children:[F.jsx('summary',{children:'数据与卸载'}),F.jsx('small',{children:'彻底卸载会清除本机海拓全部账号、聊天记录、登录、密钥、设置、缓存及历史海拓程序。覆盖升级保留数据。'}),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengUninstall().catch(error=>alert(String(error.message||error))),children:'彻底卸载海拓（删除全部本地数据）'})]})]})}
         const {haituoConfig,...domProps}=props;return F.jsxs('div',{...domProps,children:[...rest,configured,drawer('shortcuts','其他快捷键'),drawer('appearance','聊天外观与颜色')]});
     }
 

@@ -88,15 +88,16 @@ def prepare(target):
 
 def windows(app, tools):
     run([sys.executable,'scripts/prepare-helper.py'])
+    run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/test-uninstall.ps1'])
     builder = {
         'appId':'com.haituo.desktop','productName':'海拓',
         'protocols':[{'name':'Haituo Signal verification','schemes':['sgnl','signalcaptcha']}],
-        'directories':{'app':str(app),'output':'windows/out'},
+        'directories':{'app':str(app),'output':'windows/out','buildResources':str(ROOT/'windows/installer')},
         'electronVersion':CFG['tools']['electron'],'npmRebuild':False,
         'asar':True,'asarUnpack':['**/*.node','**/*.dll','native/*.exe','native/*.ps1'],
         'win':{'target':[{'target':'nsis','arch':['x64']}],
                'icon':str(app/'build/icons/win/icon.ico'),'signAndEditExecutable':False},
-        'nsis':{'oneClick':False,'perMachine':False,'allowToChangeInstallationDirectory':True,
+        'nsis':{'include':str(ROOT/'windows/installer/installer.nsh'),'deleteAppDataOnUninstall':False,'oneClick':False,'perMachine':False,'allowToChangeInstallationDirectory':True,
                 'createDesktopShortcut':True,'artifactName':'Haituo-${version}-Windows-${arch}-Setup.${ext}'}
     }
     p = ROOT/'.build/windows-builder.json'
@@ -105,6 +106,7 @@ def windows(app, tools):
     run(['node',tools/'node_modules/electron-builder/cli.js','--config',p,'--win','--x64','--publish','never'],env=env)
 
 def macos(app, tools):
+    run([sys.executable,'scripts/test-uninstall-macos.py'])
     iconset = ROOT/'.build/haituo.iconset'
     iconset.mkdir(exist_ok=True)
     for size in [16,32,128,256,512]:

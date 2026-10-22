@@ -21501,6 +21501,7 @@ http://jedwatson.github.io/classnames
         if (provider === `deepl`) return !!settings.deepLApiKey?.trim?.();
         if (provider === `libre`) return !!settings.libreEndpoint?.trim?.();
         if (provider === `keppl`) return !!settings.kepplApiKey?.trim?.() && !!settings.kepplEndpoint?.trim?.();
+        if (provider === `deepseek`) return !!settings.deepseekApiKey?.trim?.() || !!settings.deepseekApiKeys?.trim?.() || !!settings.apiKey?.trim?.();
         if (provider === `openai`) return !!settings.apiKey?.trim?.() || !!settings.openaiApiProfiles?.some?.(profile => profile?.apiKey?.trim?.());
         return !!settings.apiKey?.trim?.();
     }
@@ -229988,10 +229989,11 @@ function haituoCachedSignalTranslation(text) {
         (0, D9.useEffect)(() => {
             window.SignalContext.caishengSettingsVisibility?.(u);
             if (!u) return;
-            const closeRemote=()=>{d(!1);requestAnimationFrame(()=>A(o,0,!haituoHome))};
+            const closeRemote=()=>{document.activeElement?.blur?.();d(!1);requestAnimationFrame(()=>A(o,0,!haituoHome))};
             const off=window.SignalContext.caishengOnCloseSettings?.(closeRemote);
             const closeSettingsOnEscape = e => {
                 if (e.key !== `Escape`) return;
+                document.activeElement?.blur?.();
                 e.preventDefault(), e.stopPropagation(), d(!1), requestAnimationFrame(() => A(o, 0, !haituoHome));
             };
             return document.addEventListener(`keydown`, closeSettingsOnEscape, !0), () => {document.removeEventListener(`keydown`,closeSettingsOnEscape,!0);off?.();window.SignalContext.caishengSettingsVisibility?.(false)};

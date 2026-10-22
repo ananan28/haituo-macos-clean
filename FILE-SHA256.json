@@ -131,7 +131,7 @@
   "src/app/bundles/preload/calldiagnostic.js": "645fbeaefe92347a97852bad3a0ac2e44b9b256b52cd9281f95eca698a54f7f6",
   "src/app/bundles/preload/debuglog.js": "a9271e350e0555d28b998b8aa1af4dc1275c7e6e30c1ca69f0e5965ed2629d3f",
   "src/app/bundles/preload/loading.js": "f55e7d0303d954c4e0f11e6e6e4ecc3b63b91bbc230aa118be2f1d9a14f84a4a",
-  "src/app/bundles/preload/main.js": "f5b1e97b9b3dd3e9d659f87704e47af44e193646b8871b872d9859443590f0d0",
+  "src/app/bundles/preload/main.js": "5070da21e33888dbcd55f2f794a933658abbd07cd5d99996ba1443c37c932110",
   "src/app/bundles/preload/permissions.js": "2f0053753a82cf843d6f82206ceb21382fb5f462b297a4b7dfb6e3a38a5482e8",
   "src/app/bundles/preload/screenShare.js": "4841baf48d80691cad2df6a1942eb77ccfca9e05720d9f99eee9491c0d5515f4",
   "src/app/bundles/preload/sticker-creator.js": "9a7223fb51358dd0fef357227c4422daff3a6bd41f54b316bb752ac01a1721b2",

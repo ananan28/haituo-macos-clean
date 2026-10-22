@@ -32,3 +32,10 @@ else:
     with tempfile.TemporaryDirectory(prefix='haituo-message-') as profile:
         subprocess.run([str(exe),'--user-data-dir='+profile],check=True,env=env,timeout=240)
     assert json.loads(fixture.read_text(encoding='utf-8'))['ok']
+
+    env.pop('HAITUO_MESSAGE_TEST',None)
+    fixture=out/'settings.json'
+    env.update(HAITUO_SETTINGS_TEST='1',HAITUO_SETTINGS_TEST_RESULT=str(fixture))
+    with tempfile.TemporaryDirectory(prefix='haituo-settings-') as profile:
+        subprocess.run([str(exe),'--user-data-dir='+profile],check=True,env=env,timeout=240)
+    assert json.loads(fixture.read_text(encoding='utf-8'))['ok']

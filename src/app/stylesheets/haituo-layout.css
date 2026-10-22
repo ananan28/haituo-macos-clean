@@ -47,3 +47,7 @@
 @keyframes haituo-vip-flash{0%{left:-70%}45%{left:135%}100%{left:135%}}
 /* 图片/媒体查看器打开时隐藏海拓翻译 UI */
 .Lightbox__container~.CompositionArea .CaishengComposerTranslator,.Lightbox__container~.CompositionArea .CaishengComposerTranslator__restore,.Lightbox__container~.CompositionArea .HaituoQuickTranslator,body:has(.Lightbox__container) .CaishengComposerTranslator,body:has(.Lightbox__container) .CaishengComposerTranslator__restore,body:has(.Lightbox__container) .HaituoQuickTranslator,body:has(.Lightbox__container) #haituo-signal-backtranslation-preview{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+
+/* Custom badge is text, can be hidden, and must not stretch the account bar. */
+.HaituoBrand strong em{max-width:180px;white-space:nowrap;text-overflow:ellipsis;flex-shrink:1}
+.HaituoBrand strong em:empty{display:none!important}

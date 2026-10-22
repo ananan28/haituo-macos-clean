@@ -21560,6 +21560,7 @@ http://jedwatson.github.io/classnames
             refreshShortcut: e.refreshShortcut,
             shortcut: e.refreshShortcut,
             blockChineseOutgoing: e.blockChineseOutgoing,
+            brandBadgeText: e.brandBadgeText,
             accountLabelColor: e.accountLabelColor,
             chatTextColor: e.chatTextColor,
             outgoingBubbleColor: e.outgoingBubbleColor,
@@ -21579,10 +21580,10 @@ http://jedwatson.github.io/classnames
         });
     }
     function Ave(e) {
-        if (e.provider !== `auto`) return [ ...new Set([ e.provider, `google-free`, `mymemory` ]) ];
-        let t = e.groqApiKey?.trim() ? [ `groq` ] : [];
-        return e.libreEndpoint?.trim() ? [ ...t, `google-free`, `mymemory`, `libre` ] : [ ...t, `google-free`, `mymemory` ];
+        // Main process owns fallback/retry; renderer must not repeat the same chain.
+        return [ e.provider || `auto` ];
     }
+
     async function jve(e, t, n, purpose = `chat`) {
         return (await window.SignalContext.caishengTranslate({
             text: e,
@@ -89986,7 +89987,7 @@ function haituoCachedSignalTranslation(text) {
         }({}), BI = function(e) {
             return e.WaitingForUuid = `WaitingForUuid`, e.WaitingForEnvelope = `WaitingForEnvelope`, 
             e.Done = `Done`, e;
-        }(BI || {}), lRt = 45 * t.Rn, uRt = 2, dRt = 6, fRt = new n.$t, pRt = [ 10 * t.Rn, 20 * t.Rn, 30 * t.Rn, 60 * t.Rn ], 
+        }(BI || {}), lRt = 45 * t.Rn, uRt = 2, dRt = 6, fRt = new n.$t, pRt = [ 30 * t.Rn, 45 * t.Rn, 60 * t.Rn, 90 * t.Rn ], 
         mRt = class {
             #e=new Set;
             #t;
@@ -209256,22 +209257,7 @@ function haituoCachedSignalTranslation(text) {
                     onChange: e => h({
                         targetLanguage: e.target.value
                     }),
-                    children: [ (0, u6.jsx)(`option`, {
-                        value: `zh-CN`,
-                        children: `中文`
-                    }), (0, u6.jsx)(`option`, {
-                        value: `en`,
-                        children: `English`
-                    }), (0, u6.jsx)(`option`, {
-                        value: `ja`,
-                        children: `日本語`
-                    }), (0, u6.jsx)(`option`, {
-                        value: `ko`,
-                        children: `한국어`
-                    }), (0, u6.jsx)(`option`, {
-                        value: `es`,
-                        children: `Español`
-                    }) ]
+                    children: [ (0, u6.jsx)(`option`, { value: `zh-CN`, children: `中文` }), (0, u6.jsx)(`option`, { value: `en`, children: `English` }), (0, u6.jsx)(`option`, { value: `ja`, children: `日本語` }), (0, u6.jsx)(`option`, { value: `ko`, children: `한국어` }), (0, u6.jsx)(`option`, { value: `es`, children: `Español` }), (0, u6.jsx)(`option`, { value: `fr`, children: `法语 · Français` }), (0, u6.jsx)(`option`, { value: `de`, children: `德语 · Deutsch` }), (0, u6.jsx)(`option`, { value: `it`, children: `意大利语 · Italiano` }), (0, u6.jsx)(`option`, { value: `pt`, children: `葡萄牙语 · Português` }), (0, u6.jsx)(`option`, { value: `ru`, children: `俄语 · Русский` }), (0, u6.jsx)(`option`, { value: `ar`, children: `阿拉伯语 · العربية` }), (0, u6.jsx)(`option`, { value: `th`, children: `泰语 · ไทย` }), (0, u6.jsx)(`option`, { value: `vi`, children: `越南语 · Tiếng Việt` }), (0, u6.jsx)(`option`, { value: `id`, children: `印尼语 · Indonesia` }), (0, u6.jsx)(`option`, { value: `ms`, children: `马来语 · Melayu` }), (0, u6.jsx)(`option`, { value: `hi`, children: `印地语 · हिन्दी` }), (0, u6.jsx)(`option`, { value: `tr`, children: `土耳其语 · Türkçe` }), (0, u6.jsx)(`option`, { value: `nl`, children: `荷兰语 · Nederlands` }), (0, u6.jsx)(`option`, { value: `pl`, children: `波兰语 · Polski` }), (0, u6.jsx)(`option`, { value: `uk`, children: `乌克兰语 · Українська` }) ]
                 }), (0, u6.jsx)(`button`, {
                     type: `button`,
                     onClick: () => c(e => !e),
@@ -227848,6 +227834,17 @@ function haituoCachedSignalTranslation(text) {
             };
             return document.addEventListener(`visibilitychange`, t), e;
         }, [ n, o ]);
+        const haituoQrRetries = (0, $7.useRef)(0);
+        (0, $7.useEffect)(() => {
+            if (e.loadingState === JP.Loaded) { haituoQrRetries.current = 0; return; }
+            if (o !== ep.Timeout || haituoQrRetries.current >= 3) return;
+            let fired = false;
+            const retry = () => { if (fired) return; fired = true; haituoQrRetries.current += 1; n(); };
+            const timer = setTimeout(retry, [5000, 15000, 30000][haituoQrRetries.current]);
+            const online = () => { clearTimeout(timer); retry(); };
+            window.addEventListener(`online`, online, { once: true });
+            return () => { clearTimeout(timer); window.removeEventListener(`online`, online); };
+        }, [e.loadingState, o, n]);
         let s = !1;
         switch (e.loadingState) {
           case JP.Loading:
@@ -230029,6 +230026,11 @@ function haituoCachedSignalTranslation(text) {
             };
             return document.addEventListener(`keydown`, closeSettingsOnEscape, !0), () => document.removeEventListener(`keydown`, closeSettingsOnEscape, !0);
         }, [ u, o, haituoHome ]);
+        (0, D9.useEffect)(() => {
+            let stopped = false;
+            window.SignalContext.caishengGetTranslationConfig().then(cfg => { if (!stopped) h(current => ({ ...current, ...cfg, openAIModel: cfg.model ?? current.openAIModel, compatibleEndpoint: cfg.endpoint ?? current.compatibleEndpoint })); }).catch(() => {});
+            return () => { stopped = true; };
+        }, []);
         (0, D9.useEffect)(() => window.SignalContext.caishengOnTranslationConfig?.(e => {
             if (!e || typeof e !== `object`) return;
             const next = { ...e, openAIModel: e.model ?? m.openAIModel, compatibleEndpoint: e.endpoint ?? m.compatibleEndpoint };
@@ -230102,7 +230104,7 @@ function haituoCachedSignalTranslation(text) {
                 } catch {}
             };
             refresh();
-            const timer = setInterval(refresh, 1e4);
+            const timer = setInterval(refresh, 6e4);
             return () => {
                 stopped = !0, clearInterval(timer);
             };
@@ -230385,7 +230387,7 @@ function haituoCachedSignalTranslation(text) {
                 await window.SignalContext.caishengReloadWebContents(n);
                 return;
             } catch {}
-            typeof t.reloadIgnoringCache === `function` ? t.reloadIgnoringCache() : typeof t.reload === `function` ? t.reload() : t.src && t.loadURL?.(t.src);
+            typeof t.reload === `function` ? t.reload() : t.src && t.loadURL?.(t.src);
         }
         return (0, O9.jsxs)(`div`, {
             className: `CaishengPlatformShell${m.darkTheme ? ` is-haituo-dark` : ``}`,
@@ -230403,7 +230405,7 @@ function haituoCachedSignalTranslation(text) {
                 children: [ (0, O9.jsxs)(`div`, {
                     className: `HaituoBrand`,
                     children: [ (0, O9.jsx)(`img`, { className: `HaituoBrand__coin`, src: `images/haituo-coin.png`, alt: `海拓` }), (0, O9.jsxs)(`span`, {
-                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.5` }) ]
+                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: m.brandBadgeText ?? `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.7` }) ]
                     }) ]
                 }), (0, O9.jsxs)(`div`, {
                     className: `HaituoPlatformFilters`,
@@ -230419,7 +230421,7 @@ function haituoCachedSignalTranslation(text) {
                     }) ]
                 }), (0, O9.jsx)(`div`, {
                     className: `HaituoMarketTicker`,
-                    title: `行情每 10 秒更新；伦敦黄金按 Europe/London 自动切换冬令时/夏令时。伦敦现货黄金为场外市场，08:00 表示伦敦主要交易时段开始；LBMA 黄金定价为伦敦时间 10:30 和 15:00。`,
+                    title: `行情每 60 秒更新；伦敦黄金按 Europe/London 自动切换冬令时/夏令时。伦敦现货黄金为场外市场，08:00 表示伦敦主要交易时段开始；LBMA 黄金定价为伦敦时间 10:30 和 15:00。`,
                     children: [ [ `BTC`, `$`, haituoMarket.btc ], [ `USD`, `¥`, haituoMarket.usd ], [ `现货黄金`, `$`, haituoMarket.gold ] ].map(([label, symbol, item]) => (0, O9.jsxs)(`span`, {
                         className: item?.change < 0 ? `is-down` : `is-up`,
                         children: [ (0, O9.jsxs)(`b`, { children: [ label, ` `, symbol, Number.isFinite(Number(item?.price)) ? Number(item.price).toLocaleString(`en-US`, { maximumFractionDigits: 2 }) : `—` ] }), (0, O9.jsx)(`small`, { children: Number.isFinite(Number(item?.change)) ? `${item.change >= 0 ? `▲+` : `▼`}${Number(item.change).toFixed(2)}%` : item ? haituoMarket.cached ? `缓存行情` : `实时` : `重试中` }) ]
@@ -230728,22 +230730,12 @@ function haituoCachedSignalTranslation(text) {
                             onChange: e => N({
                                 targetLanguage: e.target.value
                             }),
-                            children: [ (0, O9.jsx)(`option`, {
-                                value: `zh-CN`,
-                                children: `中文`
-                            }), (0, O9.jsx)(`option`, {
-                                value: `en`,
-                                children: `English`
-                            }), (0, O9.jsx)(`option`, {
-                                value: `ja`,
-                                children: `日本語`
-                            }), (0, O9.jsx)(`option`, {
-                                value: `ko`,
-                                children: `한국어`
-                            }), (0, O9.jsx)(`option`, {
-                                value: `es`,
-                                children: `Español`
-                            }) ]
+                            children: [ (0, O9.jsx)(`option`, { value: `zh-CN`, children: `中文` }), (0, O9.jsx)(`option`, { value: `en`, children: `English` }), (0, O9.jsx)(`option`, { value: `ja`, children: `日本語` }), (0, O9.jsx)(`option`, { value: `ko`, children: `한국어` }), (0, O9.jsx)(`option`, { value: `es`, children: `Español` }), (0, O9.jsx)(`option`, { value: `fr`, children: `法语 · Français` }), (0, O9.jsx)(`option`, { value: `de`, children: `德语 · Deutsch` }), (0, O9.jsx)(`option`, { value: `it`, children: `意大利语 · Italiano` }), (0, O9.jsx)(`option`, { value: `pt`, children: `葡萄牙语 · Português` }), (0, O9.jsx)(`option`, { value: `ru`, children: `俄语 · Русский` }), (0, O9.jsx)(`option`, { value: `ar`, children: `阿拉伯语 · العربية` }), (0, O9.jsx)(`option`, { value: `th`, children: `泰语 · ไทย` }), (0, O9.jsx)(`option`, { value: `vi`, children: `越南语 · Tiếng Việt` }), (0, O9.jsx)(`option`, { value: `id`, children: `印尼语 · Indonesia` }), (0, O9.jsx)(`option`, { value: `ms`, children: `马来语 · Melayu` }), (0, O9.jsx)(`option`, { value: `hi`, children: `印地语 · हिन्दी` }), (0, O9.jsx)(`option`, { value: `tr`, children: `土耳其语 · Türkçe` }), (0, O9.jsx)(`option`, { value: `nl`, children: `荷兰语 · Nederlands` }), (0, O9.jsx)(`option`, { value: `pl`, children: `波兰语 · Polski` }), (0, O9.jsx)(`option`, { value: `uk`, children: `乌克兰语 · Українська` }) ]
+                        }) ]
+                    }), (0, O9.jsxs)(`label`, {
+                        children: [ (0, O9.jsx)(`span`, { children: `顶部徽标文字` }), (0, O9.jsx)(`input`, {
+                            type: `text`, maxLength: 48, value: m.brandBadgeText ?? `SVIP`, placeholder: `留空隐藏`,
+                            onChange: e => Q({ brandBadgeText: e.target.value })
                         }) ]
                     }), (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`input`, {

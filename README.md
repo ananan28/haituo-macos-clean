@@ -1,6 +1,6 @@
 # 海拓独立开发工程
 
-本工程同时构建 Windows x64 1.2.4 和 macOS ARM64 1.2.4。所有应用代码、资源、随附 JavaScript 依赖和构建脚本都在本目录内。移动整个目录，或提交到你自己的新仓库即可继续开发，不需要以前的仓库、电脑、source.zip 分卷或已安装的海拓。
+本工程同时构建 Windows x64 1.3.7 和 macOS ARM64 1.3.7。所有应用代码、资源、随附 JavaScript 依赖和构建脚本都在本目录内。移动整个目录，或提交到你自己的新仓库即可继续开发，不需要以前的仓库、电脑、source.zip 分卷或已安装的海拓。
 
 ## 新电脑构建
 
@@ -18,7 +18,7 @@ Mac，在项目目录终端执行：
 python3 scripts/build.py --target macos --test
 ```
 
-首次构建需要联网下载固定版本的 Electron、打包工具及原生依赖。Windows 输出 `windows/out/Haituo-1.2.4-Windows-x64-Setup.exe`；Mac 输出 `macos/out/海拓-1.2.4-arm64.dmg`。构建不发布任何版本。Mac 使用本地临时签名；本工程不包含开发者证书或 Apple 公证凭据。
+首次构建需要联网下载固定版本的 Electron、打包工具及原生依赖。Windows 输出 `windows/out/Haituo-1.3.7-Windows-x64-Setup.exe`；Mac 输出 `macos/out/海拓-1.3.7-arm64.dmg`。构建不发布任何版本。Mac 使用本地临时签名；本工程不包含开发者证书或 Apple 公证凭据。
 
 ## 修改代码
 
@@ -32,14 +32,16 @@ python3 scripts/build.py --target macos --test
 
 ## 服务与数据
 
-安装包与工程不包含个人聊天数据库、登录会话或 API 密钥。旧电脑数据迁移需单独备份用户数据目录。现有账户登录、翻译控制/网关还依赖既有 Supabase 远端服务；本工程包含调用端，不包含其服务端实现，详见 `EXTERNAL-SERVICES.md`。第三方 WhatsApp/Signal 网页与平台也需要正常网络。
+安装包与工程不包含个人聊天数据库、登录会话或 API 密钥。旧电脑数据迁移需单独备份用户数据目录。代码仍保留既有 username-login 远端接口；当前工程没有 backend/，不包含私有服务端实现，详见 `EXTERNAL-SERVICES.md`。第三方 WhatsApp/Signal 网页与平台也需要正常网络。
 
 `--test` 包含实际启动及窗口回归验证；它使用临时数据目录，不登录你的账号。需要人工完成真实账号的收发消息、API 认证、语音转文/翻译、音频外放和数据库升级验证。
 
-## 1.2.4 验证边界
+## 1.3.7 行为及验证边界
 
-默认保持禁止直接发送中文。关闭后，原生发送、快速输入 Enter 和顶部直接发送使用原文；手动翻译按钮仍执行翻译。回归包含真实开关保存、快速切换、草稿保留、原生回车事件、重复回车和异步输入变化。
+默认保持禁止直接发送中文。关闭后原生发送中文需要确认；快速输入回车先翻译填入并显示回译，再使用原生发送按钮发送，与 1.3.5 保持一致。
 
-子账号目前仍采用独立进程与独立原生窗口跟随主窗口，尚未完成同一窗口内部嵌入；拖动分离问题不能据此认定已经解决。真实账号发送、音频外放、旧数据库升级仍需实机验证。
+本轮弱网、行情、语言及徽标修改见 CHANGELOG-1.3.7.md。运行 `node --test scripts/translation-validation.test.cjs scripts/network.test.cjs`，再在对应系统运行 `python scripts/build.py --target windows --test` 或 `python3 scripts/build.py --target macos --test`。
 
-补充说明：maintenance/ 是基线修复脚本参考，不要对已经修复的 src/app 再次执行补丁。
+子账号仍采用独立进程和原生窗口跟随，未完成同一窗口内部嵌入。真实账号、语音外放、旧数据库升级、删除记录保留及全面加密仍需单独验证/实现。不能将安装包构建通过等同于所有历史问题已解决。
+
+maintenance/ 是历史补丁参考，不要重复应用到当前 src/app。

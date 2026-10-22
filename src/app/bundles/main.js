@@ -24711,14 +24711,10 @@ function haituoCompatibleEndpoint(value,defaultBase,path){
     if(url.hostname===`api.openai.com`&&(!url.pathname||url.pathname===`/`))return `${url.origin}/v1/${path}`;
     return `${base}/${path}`;
 }
+const HaituoNetwork = require(`../js/haituo-network.js`);
+async function haituoTranslationFetch(url, init) { return p.net.fetch(url, init); }
 async function Yp(e, t, n) {
-    let a = await fetch(e, { ...t, signal: AbortSignal.timeout(n) });
-    if (!a.ok){
-        let code=``;try{const body=await a.json(),raw=String(body?.error?.code||body?.error?.type||``);if(/^[a-zA-Z0-9_-]{1,80}$/u.test(raw))code=raw}catch{}
-        const url=new URL(e);let model=``;try{const value=JSON.parse(t?.body||`{}`).model;if(typeof value===`string`&&/^[a-zA-Z0-9._:/-]{1,120}$/u.test(value))model=value}catch{}
-        const error=Error(`HTTP ${a.status}${a.status===401||a.status===403?`（认证失败，请核对该服务的密钥与地址）`:``}；地址：${url.origin}${url.pathname}${model?`；模型：${model}`:``}${code?`；服务错误：${code}`:``}`);error.status=a.status;throw error;
-    }
-    return a.json();
+    return HaituoNetwork.requestJSON(haituoTranslationFetch, e, t, n);
 }
 
 function haituoSplitTranslationText(e, t) {
@@ -24754,15 +24750,20 @@ function haituoNaturalizeFreeTranslation(source, targetLanguage, translated) {
 }
 
 async function Xp(e) {
-    let t = typeof e.text == `string` ? e.text.trim() : ``, n = typeof e.targetLanguage == `string` ? e.targetLanguage : `zh-CN`, r = typeof e.provider == `string` ? e.provider : `deepl`, a = typeof e.timeoutMs == `number` ? Math.min(Math.max(e.timeoutMs, 1e3), 3e4) : [ `google-free`, `mymemory` ].includes(r) ? 6e3 : 12e3;
+    let t = typeof e.text == `string` ? e.text.trim() : ``, n = typeof e.targetLanguage == `string` ? e.targetLanguage : `zh-CN`, r = typeof e.provider == `string` ? e.provider : `deepl`, a = HaituoNetwork.translationTimeout(r, t, e.timeoutMs);
     if (!t || t.length > 3e4) throw Error(`翻译内容为空或过长`);
-    const chunkLimit = r === `mymemory` ? 420 : r === `google-free` ? 1200 : 0;
+    const chunkLimit = r === `mymemory` ? 420 : r === `google-free` ? 1200 : 1800;
     if (chunkLimit && t.length > chunkLimit) {
         const chunks = haituoSplitTranslationText(t, chunkLimit), translated = [];
-        for (const chunk of chunks) translated.push((await Xp({
-            ...e,
-            text: chunk
-        })).text);
+        for (const chunk of chunks) {
+            const part = { ...e, text: chunk }, key = haituoTranslationCacheKey(part), cache = loadHaituoTranslationCache();
+            const existing = cache[key];
+            if (!e.__haituoForceChunks && existing?.text?.trim()) { translated.push(existing.text); continue; }
+            const result = await Xp(part);
+            cache[key] = { ...result, updatedAt: Date.now() };
+            saveHaituoTranslationCache();
+            translated.push(result.text);
+        }
         return {
             text: translated.join(` `).replace(/\s+([,.!?;:。！？；：])/gu, `$1`).trim(),
             provider: r
@@ -25042,7 +25043,7 @@ function haituoRememberChatTranslation(request, result) {
 }
 
 const HaituoTranslationInFlight = new Map;
-const HaituoProviderCooldown = new Map;
+
 const HaituoRequestQueue = [];
 const HaituoWebContentsByWorkspace = new Map;
 const HaituoWorkspaceBySession = new WeakMap;
@@ -25064,17 +25065,19 @@ function haituoOpenAIProfiles(config) {
 
 function haituoPumpRequests() {
     while (HaituoActiveRequests < 2 && HaituoRequestQueue.length) {
-        const e = HaituoRequestQueue.shift();
+        const urgent = HaituoRequestQueue[0].queuedAt + 30000 < Date.now() ? 0 : HaituoRequestQueue.findIndex(item => item.priority);
+        const e = HaituoRequestQueue.splice(urgent < 0 ? 0 : urgent, 1)[0];
         HaituoActiveRequests += 1, Promise.resolve().then(e.task).then(e.resolve, e.reject).finally(() => {
             HaituoActiveRequests -= 1, haituoPumpRequests();
         });
     }
 }
 
-function haituoScheduleRequest(e) {
+function haituoScheduleRequest(e, priority = false) {
     return new Promise((t, n) => {
         HaituoRequestQueue.push({
             task: e,
+            priority, queuedAt: Date.now(),
             resolve: t,
             reject: n
         }), haituoPumpRequests();
@@ -25082,7 +25085,7 @@ function haituoScheduleRequest(e) {
 }
 
 function haituoRunProvider(e) {
-    return haituoScheduleRequest(() => Xp(e));
+    return haituoScheduleRequest(() => Xp(e), [`input`, `test`].includes(e.purpose));
 }
 
 
@@ -25096,14 +25099,12 @@ async function haituoTranslateWithMode(config, request) {
         return result;
     }
     const errors = [], local = async provider => {
-        const cooldownUntil = HaituoProviderCooldown.get(provider) || 0;
-        if (cooldownUntil > Date.now() && request.provider !== provider) throw Error(`${provider}暂时不可用，已自动切换`);
         try {
             const base = {
                 ...config,
                 ...request,
                 provider,
-                timeoutMs: [ `google-free`, `mymemory` ].includes(provider) ? 4500 : Math.min(Math.max(Number(config.timeoutMs) || 12000, 10000), 30000),
+                timeoutMs: HaituoNetwork.translationTimeout(provider, request.text, config.timeoutMs),
                 apiKey: provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : config.apiKey,
                 endpoint: provider === `groq` ? `https://api.groq.com/openai/v1` : config.endpoint,
                 model: provider === `groq` ? `openai/gpt-oss-120b` : config.model
@@ -25111,8 +25112,8 @@ async function haituoTranslateWithMode(config, request) {
             let result;
             if (provider === `openai` && haituoOpenAIProfiles(config).length) {
                 const profiles = haituoOpenAIProfiles(config), start = HaituoOpenAIKeyCursor++ % profiles.length;
-                const failures = [];
-                for (let offset = 0; offset < profiles.length; offset += 1) {
+                const failures = [], attempts = Math.min(profiles.length, 3);
+                for (let offset = 0; offset < attempts; offset += 1) {
                     try {
                         result = await cachedHaituoTranslate({ ...base, ...profiles[(start + offset) % profiles.length] }, !!request.forceRefresh);
                         break;
@@ -25120,25 +25121,19 @@ async function haituoTranslateWithMode(config, request) {
                         failures.push(error instanceof Error ? error.message : String(error));
                     }
                 }
-                if (!result) throw Error(`OpenAI ${profiles.length} 个接口均未成功：${failures.join(`；`)}`);
+                if (!result) throw Error(`OpenAI 本次尝试的 ${attempts} 个接口均未成功：${failures.join(`；`)}`);
             } else result = await cachedHaituoTranslate(base, !!request.forceRefresh);
-            HaituoProviderCooldown.delete(provider);
             return result;
         } catch (error) {
-            HaituoProviderCooldown.set(provider, Date.now() + 3e4);
             throw error;
         }
     };
-    const tryOne = async task => { try { return await task(); } catch (e) { errors.push(e instanceof Error ? e.message : String(e)); } };
+    const tryOne = async task => { try { return await task(); } catch (e) { const message = e instanceof Error ? e.message : String(e); if (!errors.includes(message)) errors.push(message); } };
     if (request.provider && ![ `auto`, `smart-retranslate` ].includes(request.provider)) {
-        if ([ `google-free`, `mymemory` ].includes(request.provider)) {
-            const literal = await tryOne(() => local(request.provider));
-            if (literal) return literal;
-        }
         const selected = await tryOne(() => local(request.provider));
         if (selected) return selected;
-        if (request.provider !== `google-free` && !request.strictProvider) {
-            const fallback = await tryOne(() => local(`google-free`));
+        if (!request.strictProvider) for (const provider of [`google-free`, `mymemory`].filter(value => value !== request.provider)) {
+            const fallback = await tryOne(() => local(provider));
             if (fallback) return { ...fallback, fallbackFrom: request.provider, fallbackReason: errors.at(-1) || `所选服务不可用` };
         }
         throw Error(errors.join(`；`) || `没有可用翻译服务`);
@@ -25149,9 +25144,6 @@ async function haituoTranslateWithMode(config, request) {
             if (fallback) return fallback;
         }
         throw Error(errors.join(`；`) || `重新翻译暂时不可用，请检查网络`);
-    } else {
-        const reference = await tryOne(() => local(`google-free`));
-        if (reference) return reference;
     }
     const providers = [ `google-free`, `mymemory` ];
     for (const provider of providers) {
@@ -25169,7 +25161,7 @@ async function cachedHaituoTranslate(e, t = !1) {
         cached: !0
     };
     if (!t && HaituoTranslationInFlight.has(n)) return HaituoTranslationInFlight.get(n);
-    const pending = haituoRunProvider(e).then(a => {
+    const pending = haituoRunProvider({ ...e, __haituoForceChunks: t && !!r[n]?.text }).then(a => {
         r[n] = {
             text: a.text,
             provider: a.provider,
@@ -25343,17 +25335,13 @@ async function haituoMarketJson(url, timeout = 7e3, init = {}) {
             ...init.body === void 0 ? {} : { body: init.body }
         });
         if (!response.ok) throw Error(`行情接口 HTTP ${response.status}`);
-        return response.json();
+        return await response.json();
     } catch (error) {
         firstError = error;
     } finally {
         clearTimeout(timer);
     }
-    try {
-        return JSON.parse(await haituoNodeMarketText(url, timeout));
-    } catch (error) {
-        throw firstError ?? error;
-    }
+    throw firstError;
 }
 
 async function haituoMarketText(url, timeout = 7e3) {
@@ -25370,17 +25358,13 @@ async function haituoMarketText(url, timeout = 7e3) {
             }
         });
         if (!response.ok) throw Error(`行情接口 HTTP ${response.status}`);
-        return response.text();
+        return await response.text();
     } catch (error) {
         firstError = error;
     } finally {
         clearTimeout(timer);
     }
-    try {
-        return await haituoNodeMarketText(url, timeout);
-    } catch (error) {
-        throw firstError ?? error;
-    }
+    throw firstError;
 }
 
 function haituoMarketItem(price, change, updatedAt = Date.now()) {
@@ -25472,24 +25456,30 @@ async function haituoFirstTicker(loaders) {
     return new Promise(resolve => {
         let remaining = loaders.length, finished = !1;
         if (!remaining) return resolve(null);
-        for (const load of loaders) Promise.resolve().then(load).then(value => {
-            if (!finished && value) finished = !0, resolve(value);
-        }).catch(() => {}).finally(() => {
-            remaining -= 1;
-            !finished && remaining === 0 && (finished = !0, resolve(null));
-        });
+        (async () => {
+            for (const load of loaders.slice(0, 2)) {
+                try { const value = await load(); if (value) { resolve(value); return; } } catch {}
+            }
+            resolve(null);
+        })();
     });
 }
 
+let haituoMarketPending;
 async function haituoGetMarketTicker() {
     haituoLoadMarketDiskCache();
-    if (HaituoMarketTickerCache.value && Date.now() - HaituoMarketTickerCache.at < 8e3) return HaituoMarketTickerCache.value;
+    if (HaituoMarketTickerCache.value && Date.now() - HaituoMarketTickerCache.at < 60000) return HaituoMarketTickerCache.value;
+    if (!haituoMarketPending) haituoMarketPending = haituoLoadMarketTicker().catch(() => HaituoMarketTickerCache.value).finally(() => { haituoMarketPending = undefined; });
+    return HaituoMarketTickerCache.value || haituoMarketPending;
+}
+async function haituoLoadMarketTicker() {
+    haituoLoadMarketDiskCache();
+    if (HaituoMarketTickerCache.value && Date.now() - HaituoMarketTickerCache.at < 6e4) return HaituoMarketTickerCache.value;
     const coinGecko = haituoMarketJson(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`, 3500).then(data => ({
         btc: haituoMarketItem(data?.bitcoin?.usd, data?.bitcoin?.usd_24h_change, Number(data?.bitcoin?.last_updated_at) * 1e3)
     })).catch(() => ({}));
-    const [primary, btcFallback, usdFallback, goldFallback] = await Promise.all([
-        coinGecko,
-        haituoFirstTicker([ () => haituoGoogleFinanceTicker(`BTC-USD`), () => haituoBinanceVisionTicker(`BTCUSDT`), () => haituoKrakenTicker(`BTC`), () => haituoBitstampTicker(`BTC`), () => haituoKuCoinTicker(`BTC`), () => haituoBinanceTicker(`BTCUSDT`), () => haituoOkxTicker(`BTC`), () => haituoBybitTicker(`BTC`), () => haituoCryptoCompareTicker(`BTC`), () => haituoCoinCapTicker(`bitcoin`), () => haituoCoinbaseTicker(`BTC`), () => haituoYahooTicker(`BTC-USD`) ]),
+    const [btcFallback, usdFallback, goldFallback] = await Promise.all([
+        coinGecko.then(async data => data.btc || await haituoFirstTicker([ () => haituoBinanceVisionTicker(`BTCUSDT`) ])),
         haituoFirstTicker([ () => haituoGoogleFinanceTicker(`USD-CNY`), () => haituoFrankfurterUsdTicker(), () => haituoOpenErUsdTicker(), () => haituoFxRatesUsdTicker(), () => haituoYahooTicker(`CNY=X`) ]),
         haituoFirstTicker([ async () => {
             const data = await haituoMarketJson(`https://data-asg.goldprice.org/dbXRates/USD`), item = data?.items?.[0];
@@ -25505,11 +25495,7 @@ async function haituoGetMarketTicker() {
             return haituoMarketItem(close, Number.isFinite(open) && open > 0 ? (close - open) / open * 100 : null);
         }, () => haituoGoogleFinanceTicker(`GCW00:COMEX`), () => haituoYahooTicker(`XAUUSD=X`), () => haituoYahooTicker(`GC=F`) ])
     ]);
-    let btc = primary.btc || btcFallback, usd = usdFallback, gold = goldFallback;
-    if (!btc || !usd || !gold) {
-        const [systemBtc, systemUsd, systemGold] = await Promise.all([ !btc ? haituoSystemMarketJson(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`, 5500).then(data => haituoMarketItem(data?.bitcoin?.usd, data?.bitcoin?.usd_24h_change, Number(data?.bitcoin?.last_updated_at) * 1e3)).catch(() => null) : null, !usd ? haituoSystemMarketJson(`https://open.er-api.com/v6/latest/USD`, 5500).then(data => haituoMarketItem(data?.rates?.CNY, null, Number(data?.time_last_update_unix) * 1e3)).catch(() => null) : null, !gold ? haituoSystemMarketJson(`https://api.gold-api.com/price/XAU`, 5500).then(data => haituoMarketItem(data?.price, data?.change_percent ?? data?.changePercentage, Date.parse(data?.updatedAt ?? ``))).catch(() => null) : null ]);
-        btc ||= systemBtc, usd ||= systemUsd, gold ||= systemGold;
-    }
+    let btc = btcFallback, usd = usdFallback, gold = goldFallback;
     const previous = HaituoMarketTickerCache.value, hasFresh = !!(btc || usd || gold), usedCache = !!previous && (!btc || !usd || !gold);
     btc ||= previous?.btc ?? null, usd ||= previous?.usd ?? null, gold ||= previous?.gold ?? null;
     const value = {
@@ -25542,12 +25528,12 @@ function tm() {
     }), p.ipcMain.removeHandler(`caisheng:reload-web-workspace`), p.ipcMain.handle(`caisheng:reload-web-workspace`, async (e, t) => {
         const n = HaituoWebContentsByWorkspace.get(String(t));
         if (!n || n.isDestroyed()) throw Error(`网页账号不存在或尚未加载`);
-        n.stop(), n.reloadIgnoringCache();
+        n.stop(), n.reload();
         return { ok: !0 };
     }), p.ipcMain.removeHandler(`caisheng:reload-web-contents`), p.ipcMain.handle(`caisheng:reload-web-contents`, async (e, t) => {
         const n = p.webContents.fromId(Number(t));
         if (!n || n.isDestroyed() || n.getType() !== `webview`) throw Error(`网页账号不存在或尚未加载`);
-        n.reloadIgnoringCache();
+        n.reload();
         return { ok: !0 };
     }), p.ipcMain.removeHandler(`caisheng:get-web-unread-count`), p.ipcMain.handle(`caisheng:get-web-unread-count`, async (e, t) => {
         const n = p.webContents.fromId(Number(t));
@@ -25723,7 +25709,7 @@ function tm() {
             const base=String(url).trim().replace(/\/+$/u,``).replace(/\/(chat\/completions|audio\/transcriptions)$/u,``);
             const parsed=new URL(base);if(![`https:`,`http:`].includes(parsed.protocol)||parsed.username||parsed.password||parsed.search||parsed.hash)throw Error(`语音 API 地址格式错误`);
             const endpoint=`${base}/audio/transcriptions`;
-            const response = await fetch(endpoint, {
+            const response = await haituoTranslationFetch(endpoint, {
                 method: `POST`, headers: { Authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(6e4)
             });
             if (!response.ok) {
@@ -27884,6 +27870,7 @@ function haituoApplyTranslationConfig(t) {
         endpoint: typeof t?.endpoint == `string` ? t.endpoint.trim() : ``,
         model: typeof t?.model == `string` ? t.model.trim() : ``,
         region: typeof t?.region == `string` ? t.region.trim() : ``,
+        brandBadgeText: HaituoNetwork.normalizeBadge(t?.brandBadgeText ?? $p().brandBadgeText),
         targetLanguage: typeof t?.targetLanguage == `string` && t.targetLanguage ? t.targetLanguage : `en`,
         timeoutMs: t?.timeoutMs,
         translateShortcut: typeof t?.translateShortcut == `string` && t.translateShortcut !== `single-space` ? t.translateShortcut : `triple-space`,
@@ -28537,6 +28524,7 @@ async function nv() {
         Z.webContents.on(`before-mouse-event`,(_event,mouse)=>{if(mouse.type===`mouseDown`)process.send?.({type:`haituo-account-user-activation`})});
     }})(), Z.setMenuBarVisibility(!1), Z.webContents.on(`before-input-event`, rmRefresh), Z.webContents.on(`did-attach-webview`, (e, t) => {
         t.setBackgroundThrottling(!1);
+        HaituoNetwork.installWebRecovery(t);
         const workspaceId = HaituoWorkspaceBySession.get(t.session);
         workspaceId && (HaituoWebContentsByWorkspace.set(workspaceId, t), t.once(`destroyed`, () => HaituoWebContentsByWorkspace.get(workspaceId) === t && HaituoWebContentsByWorkspace.delete(workspaceId)));
         t.on(`before-input-event`, rmRefresh), t.on(`context-menu`, (e, n) => {
@@ -28982,16 +28970,18 @@ async function haituoShowSettingsWindow() {
         backgroundColor: `#080704`,
         webPreferences: { partition: `haituo-native-interface`, nodeIntegration: !1, contextIsolation: !0, sandbox: !0 }
     }), place();
-    const configJson = JSON.stringify({ ...$p() }).replace(/</gu, `\\u003c`), html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    const configJson = JSON.stringify({ ...$p(), brandBadgeText: HaituoNetwork.normalizeBadge($p().brandBadgeText) }).replace(/</gu, `\\u003c`), html = `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;font:14px "Microsoft YaHei UI",sans-serif}body{border-radius:12px;overflow:hidden}.title{-webkit-app-region:drag;height:46px;display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:800}.title button{-webkit-app-region:no-drag;margin-left:auto;width:32px;height:32px;padding:0;font-size:20px}.scroll{height:calc(100% - 102px);overflow:auto;padding:12px 14px;scrollbar-color:#a77b29 #0b0905}.intro{padding:9px 11px;border-radius:8px;margin-bottom:10px}.section{margin:14px 0 7px;padding-bottom:5px;font-weight:800}.row{display:flex;gap:8px;align-items:center;margin:9px 0}.row.column{display:flex;flex-direction:column;align-items:stretch}.row>span:first-child{min-width:118px;}.check{display:flex;gap:8px;align-items:center;margin:9px 0}.check input{width:18px;height:18px;}input,select,button{min-height:34px;border-radius:7px;padding:5px 8px;outline:none}input:focus,select:focus{}.grow{flex:1;min-width:0}.colors{display:grid;grid-template-columns:1fr 126px;gap:8px;width:100%}input[type=color]{width:100%;padding:2px}.rainbow{font-weight:800;}.footer{height:56px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 14px;}.primary{font-weight:900;}.muted{}.fontValue{min-width:40px;text-align:right}</style><style>
 body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}.scroll{flex:1;min-height:0;height:auto;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#888 transparent}.footer{flex:0 0 56px}.scroll::-webkit-scrollbar{width:12px}.scroll::-webkit-scrollbar-thumb{background:#888;border-radius:8px;border:3px solid transparent;background-clip:padding-box}.scroll::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}[hidden]{display:none!important}
 </style><style id="haituo-native-settings">${haituoNativeSettingsCss($p().nativeTheme)}</style></head><body>
-<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.1.20 · Signal / WhatsApp / Telegram 通用</div></div>
+<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.3.7 · Signal / WhatsApp / Telegram 通用</div></div>
 <label class="check"><input type="checkbox" name="hideTranslationBox">隐藏输入框翻译工具栏</label>
 <label class="check"><input type="checkbox" name="autoTranslateIncoming">接收回译</label>
 <label class="check"><input type="checkbox" name="backTranslationEnabled">发送回译</label>
 <label class="check"><input type="checkbox" name="groupBackTranslationEnabled">群组回译</label>
 <label class="check"><input type="checkbox" name="blockChineseOutgoing">禁止直接发送中文</label>
+<div class="section">界面设置</div>
+<label class="row"><span>顶部徽标文字</span><input class="grow" name="brandBadgeText" maxlength="48" placeholder="SVIP（可自定义或留空隐藏）"></label>
 <div class="section">智能区设置</div>
 <label class="row"><span>自动翻译快捷键</span><select class="grow" name="translateShortcut"><option value="triple-space">连续三次空格</option><option value="alt-t">Alt + T</option><option value="ctrl-shift-t">Ctrl + Shift + T</option><option value="ctrl-alt-t">Ctrl + Alt + T</option></select></label>
 <label class="row"><span>刷新账号快捷键</span><select class="grow" name="refreshShortcut"><option value="ctrl-r">Ctrl + R</option><option value="f5">F5</option><option value="ctrl-shift-r">Ctrl + Shift + R</option></select></label>
@@ -29005,7 +28995,7 @@ body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;
 <details id="multiApiDrawer"><summary>多 API 调度 · 点击展开逐条填写</summary><div id="multiApiRows"></div><button id="addApiKey" type="button">＋ 添加 OpenAI 接口</button><div class="muted">选择 OpenAI 时按顺序轮换；当前接口失败时尝试下一条。单接口填写在上方。</div></details>
 <label class="row column"><span>API 地址</span><input name="endpoint" placeholder="如 https://api.openai.com/v1"></label>
 <label class="row column"><span>模型</span><input name="model" placeholder="如 gpt-4.1-mini"></label>
-<label class="row"><span>目标语言</span><select class="grow" name="targetLanguage"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="es">Español</option></select></label>
+<label class="row"><span>目标语言</span><select class="grow" name="targetLanguage"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="es">Español</option><option value="fr">法语 · Français</option><option value="de">德语 · Deutsch</option><option value="it">意大利语 · Italiano</option><option value="pt">葡萄牙语 · Português</option><option value="ru">俄语 · Русский</option><option value="ar">阿拉伯语 · العربية</option><option value="th">泰语 · ไทย</option><option value="vi">越南语 · Tiếng Việt</option><option value="id">印尼语 · Indonesia</option><option value="ms">马来语 · Melayu</option><option value="hi">印地语 · हिन्दी</option><option value="tr">土耳其语 · Türkçe</option><option value="nl">荷兰语 · Nederlands</option><option value="pl">波兰语 · Polski</option><option value="uk">乌克兰语 · Українська</option></select></label>
 <div class="section">聊天外观</div>
 <label class="row"><span>外观</span><select name="nativeTheme"><option value="dark">原生深色</option><option value="light">原生浅色</option></select></label>
 <label class="row"><span>聊天字体大小</span><input class="grow" name="chatFontSize" type="range" min="12" max="24" step="1"><span class="fontValue" id="fontValue"></span></label>
@@ -30176,7 +30166,7 @@ p.ipcMain.on(`get-config`, async e => {
         osRelease: u.release(),
         osVersion: u.version(),
         appInstance: process.env.NODE_APP_INSTANCE || void 0,
-        proxyUrl: process.env.HTTPS_PROXY || process.env.https_proxy || void 0,
+        proxyUrl: await HaituoNetwork.resolveSignalProxy(p.session.defaultSession, r.t.get(`serverUrl`), process.env.HTTPS_PROXY || process.env.https_proxy),
         contentProxyUrl: r.t.get(`contentProxyUrl`),
         sfuUrl: r.t.get(`sfuUrl`),
         reducedMotionSetting: Kg.prefersReducedMotion,
@@ -30923,7 +30913,7 @@ if(process.env.HAITUO_SETTINGS_TEST==='1'&&$u!=='signal-main')process.on('messag
     if(value?.type!=='haituo-settings-test')return;
     try {
         const result=await Z.webContents.executeJavaScriptInIsolatedWorld(999,[{code:`(async()=>{
-            const keys=['nativeTheme','chatFontSize','chatTextColor','incomingBubbleColor','outgoingBubbleColor','chatTranslationProvider','inputTranslationProvider'];
+            const keys=['brandBadgeText','targetLanguage','nativeTheme','chatFontSize','chatTextColor','incomingBubbleColor','outgoingBubbleColor','chatTranslationProvider','inputTranslationProvider'];
             if(!window.__settingsTestSubscribed){window.__settingsTestSubscribed=true;window.SignalContext.caishengOnTranslationConfig(cfg=>{window.__settingsTestObserved=Object.fromEntries(keys.map(k=>[k,cfg[k]]))})}
             if(${JSON.stringify(value.config||null)})await window.SignalContext.caishengSetTranslationConfig(${JSON.stringify(value.config||{})});
             const cfg=await window.SignalContext.caishengGetTranslationConfig();
@@ -30932,8 +30922,11 @@ if(process.env.HAITUO_SETTINGS_TEST==='1'&&$u!=='signal-main')process.on('messag
         process.send?.({type:'haituo-settings-test-result',requestId:value.requestId,result});
     }catch(error){process.send?.({type:'haituo-settings-test-result',requestId:value.requestId,error:String(error)})}
 });
+let haituoSettingsFixtureStarted = false;
 async function haituoTestSettingsSync() {
+    if(haituoSettingsFixtureStarted)return;
     if(process.env.HAITUO_SETTINGS_TEST!=='1'||$u!=='signal-main')return;
+    haituoSettingsFixtureStarted = true;
     const output=process.env.HAITUO_SETTINGS_TEST_RESULT, original=$p(), delay=ms=>new Promise(r=>setTimeout(r,ms));
     const ids=['signal-settings-test-a','signal-settings-test-b'],views=[],stages=[];
     let serviceCheck;
@@ -30945,6 +30938,18 @@ async function haituoTestSettingsSync() {
         child.on('message',listen);caishengSendChild(child,{type:'haituo-settings-test',requestId,config});
     });
     try {
+        // Exercise actual Chromium transport against a local server (no user credentials).
+        let requests = 0;
+        const server = require('node:http').createServer((_req,res)=>{
+            requests += 1; res.setHeader('Content-Type','application/json');
+            if(requests===1){res.writeHead(503);res.end('{}')}else res.end(JSON.stringify({text:'local network recovery'}));
+        });
+        await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+        try {
+            const result=await Yp('http://127.0.0.1:'+server.address().port+'/translation',{},5000);
+            check(result.text==='local network recovery'&&requests===2,'Chromium retry transport failed');
+            stages.push({source:'chromium-network-recovery',requests,ok:true});
+        } finally { await new Promise(resolve=>server.close(resolve)); }
         const launch=p.ipcMain._invokeHandlers.get('caisheng:launch-signal-profile');
         for(const id of ids){await launch({senderFrame:{url:'file:///settings-fixture'}},id);const deadline=Date.now()+60000;while(!Xg.has(id)&&Date.now()<deadline)await delay(200);check(Xg.has(id),'Settings child did not become ready');await request(id)}
         const html=`<html><body><style>.incoming{background-color:var(--WDS-systems-bubble-surface-incoming,#242626)}.outgoing{background-color:var(--WDS-systems-bubble-surface-outgoing,#144d37)}</style><div id="app"><div id="main"><div data-id="modern-incoming"><div data-testid="msg-container"><div class="incoming" id="bubble-in"><span class="selectable-text" id="text-in">Hello</span></div></div></div><div data-id="modern-outgoing"><div data-testid="msg-container"><div class="outgoing" id="bubble-out"><span data-testid="selectable-text" id="text-out">Hi</span></div></div></div></div></div></body></html>`;
@@ -30955,15 +30960,18 @@ async function haituoTestSettingsSync() {
             await win.webContents.session.protocol.handle('https',()=>new Response(html,{headers:{'content-type':'text/html;charset=utf-8'}}));
             await win.loadURL('https://web.whatsapp.com/settings-fixture');views.push(win);
         }
-        const cases=[{source:'main',config:{nativeTheme:'dark',darkTheme:true,chatFontSize:24,chatTextColor:'#abcdef',incomingBubbleLinked:false,incomingBubbleColor:'#123456',outgoingBubbleColor:'#654321',chatTranslationProvider:'openai',inputTranslationProvider:'google-free'}},
-            {source:ids[0],config:{nativeTheme:'light',darkTheme:false,chatFontSize:14,chatTextColor:'#334455',incomingBubbleLinked:true,outgoingBubbleColor:'#456789',chatTranslationProvider:'google-free',inputTranslationProvider:'openai'}},
-            {source:'whatsapp',config:{nativeTheme:'dark',darkTheme:true,chatFontSize:18,chatTextColor:'#567890',incomingBubbleLinked:false,incomingBubbleColor:'#aabbcc',outgoingBubbleColor:'#8899aa',chatTranslationProvider:'openai',inputTranslationProvider:'openai'}}];
+        const cases=[{source:'main',config:{brandBadgeText:'海拓团队',targetLanguage:'fr',nativeTheme:'dark',darkTheme:true,chatFontSize:24,chatTextColor:'#abcdef',incomingBubbleLinked:false,incomingBubbleColor:'#123456',outgoingBubbleColor:'#654321',chatTranslationProvider:'openai',inputTranslationProvider:'google-free'}},
+            {source:ids[0],config:{brandBadgeText:'<VIP & 测试>',targetLanguage:'de',nativeTheme:'light',darkTheme:false,chatFontSize:14,chatTextColor:'#334455',incomingBubbleLinked:true,outgoingBubbleColor:'#456789',chatTranslationProvider:'google-free',inputTranslationProvider:'openai'}},
+            {source:'whatsapp',config:{brandBadgeText:'',targetLanguage:'th',nativeTheme:'dark',darkTheme:true,chatFontSize:18,chatTextColor:'#567890',incomingBubbleLinked:false,incomingBubbleColor:'#aabbcc',outgoingBubbleColor:'#8899aa',chatTranslationProvider:'openai',inputTranslationProvider:'openai'}}];
         for(const test of cases){
             if(test.source==='main')haituoApplyTranslationConfig({...$p(),...test.config});
             else if(test.source==='whatsapp')await p.ipcMain._invokeHandlers.get('caisheng:set-translation-config')({senderFrame:{url:'https://web.whatsapp.com/'}},test.config);
             else await request(test.source,test.config);
             await delay(350);
             const expected=$p(),children=await Promise.all(ids.map(id=>request(id)));
+            const shell=await Z.webContents.executeJavaScript(`(()=>{const badge=document.querySelector('.HaituoBrand em');return{badge:badge?.textContent,badgeMarkup:badge?.children.length||0}})()`);
+            check(shell.badge===expected.brandBadgeText&&shell.badgeMarkup===0,'Custom badge did not render as literal text');
+
             for(const child of children){for(const key of Object.keys(child.config)){check(child.config[key]===expected[key],'Saved child setting mismatch: '+key);check(child.observed?.[key]===expected[key],'Child renderer did not receive setting: '+key)}}
             const guest=await Promise.all(views.map(win=>win.webContents.executeJavaScript(`(()=>{const read=id=>{const st=getComputedStyle(document.getElementById(id));return{font:st.fontSize,color:st.color,bg:st.backgroundColor}};return{incoming:read('bubble-in'),outgoing:read('bubble-out'),text:read('text-in'),otherText:read('text-out'),theme:document.documentElement.dataset.theme}})()`)));
             const rgb=hex=>'rgb('+hex.slice(1).match(/../g).map(v=>parseInt(v,16)).join(', ')+')';
@@ -31000,27 +31008,27 @@ async function haituoTestSettingsSync() {
         haituoApplyTranslationConfig({...$p(),hideTranslationBox:true});await delay(1000);
         check(await mediaWin.webContents.executeJavaScript(`!!document.getElementById('haituo-wa-translator-toggle')&&!document.querySelector('#haituo-whatsapp-translator textarea')`),'Local toolbar preference overrides global hide setting');
         stages.push({source:'local-then-global-hide',ok:true});
-        const savedFetch=globalThis.fetch,audioCalls=[];
+        const savedFetch=haituoTranslationFetch,audioCalls=[];
         const audioHandler=p.ipcMain._invokeHandlers.get('caisheng:transcribe-audio'),audioEvent={senderFrame:{url:'https://web.whatsapp.com/'}},audio={bytes:[1,2,3,4,5],mimeType:'audio/ogg',fileName:'fixture.ogg'};
         try{
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'Bearer fixture-key',openaiVoiceEndpoint:'https://api.example.test/v1/chat/completions',openaiVoiceModel:'',apiKey:'Bearer fixture-key',endpoint:'https://api.example.test/v1/chat/completions'});
-            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),authMatched:options.headers.Authorization==='Bearer fixture-key'});return new Response('{}',{status:401})};
+            haituoTranslationFetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),authMatched:options.headers.Authorization==='Bearer fixture-key'});return new Response('{}',{status:401})};
             let rejected='';try{await audioHandler(audioEvent,audio)}catch(error){rejected=String(error.message)}
             stages.push({source:'audio-auth-attempt',audioCalls:[...audioCalls],rejected});
             check(audioCalls.length===1&&rejected.includes('认证失败')&&audioCalls[0].authMatched&&audioCalls[0].url==='https://api.example.test/v1/audio/transcriptions','401 audio auth/routing incorrect');
-            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return options.body.get('model')==='whisper-1'?new Response(JSON.stringify({text:'fixture transcription'}),{status:200}):new Response('{}',{status:400})};
+            haituoTranslationFetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return options.body.get('model')==='whisper-1'?new Response(JSON.stringify({text:'fixture transcription'}),{status:200}):new Response('{}',{status:400})};
             const transcribed=await audioHandler(audioEvent,audio);check(transcribed.text==='fixture transcription'&&audioCalls.length===3,'Whisper unsupported-model fallback failed');
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'groq',groqApiKey:'fixture-groq'});
-            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return new Response(JSON.stringify({text:'groq fixture transcription'}),{status:200})};
+            haituoTranslationFetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model')});return new Response(JSON.stringify({text:'groq fixture transcription'}),{status:200})};
             const groq=await audioHandler(audioEvent,audio);check(groq.text==='groq fixture transcription'&&audioCalls.length===4,'Selected provider reused another provider cache');
             const textCalls=[];
-            globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);textCalls.push({url,model:body.model,authMatched:options.headers.Authorization==='Bearer fixture-text'});return new Response(JSON.stringify({choices:[{message:{content:'文字路由测试'}}]}),{status:200})};
+            haituoTranslationFetch=async(url,options)=>{const body=JSON.parse(options.body);textCalls.push({url,model:body.model,authMatched:options.headers.Authorization==='Bearer fixture-text'});return new Response(JSON.stringify({choices:[{message:{content:'文字路由测试'}}]}),{status:200})};
             const textResult=await p.ipcMain._invokeHandlers.get('caisheng:translate')(audioEvent,{text:'dedicated text route test',provider:'openai',purpose:'test',forceRefresh:true,strictProvider:true,apiKey:'Bearer fixture-text',endpoint:'https://text.example.test/v1/chat/completions/',model:'text-fixture-model'});
             check(textResult.text==='文字路由测试'&&textCalls.length===1&&textCalls[0].authMatched&&textCalls[0].url==='https://text.example.test/v1/chat/completions'&&textCalls[0].model==='text-fixture-model','Text route adds duplicate endpoint/Bearer or inherits voice model');
             stages.push({source:'openai-text-routing',textCalls,result:textResult});
             haituoApplyTranslationConfig({...$p(),voiceTranscriptionProvider:'openai',openaiVoiceApiKey:'fixture-dedicated',openaiVoiceEndpoint:'https://voice.example.test/v1/audio/transcriptions',openaiVoiceModel:'whisper-1',apiKey:'different-text-key',endpoint:'https://text.example.test/v1',model:'text-only-model'});
             const count=audioCalls.length;
-            globalThis.fetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),dedicatedKey:options.headers.Authorization==='Bearer fixture-dedicated'});return new Response(JSON.stringify({text:'dedicated voice fixture'}),{status:200})};
+            haituoTranslationFetch=async(url,options)=>{audioCalls.push({url,model:options.body.get('model'),dedicatedKey:options.headers.Authorization==='Bearer fixture-dedicated'});return new Response(JSON.stringify({text:'dedicated voice fixture'}),{status:200})};
             const dedicated=await audioHandler(audioEvent,audio);check(dedicated.provider==='openai-whisper-1'&&audioCalls.length===count+1&&audioCalls.at(-1).dedicatedKey&&audioCalls.at(-1).model==='whisper-1'&&audioCalls.at(-1).url==='https://voice.example.test/v1/audio/transcriptions','Voice request inherited text routing or model');
             const mute=p.ipcMain._invokeHandlers.get('caisheng:capture-voice-media'),ev={senderFrame:{url:'https://web.whatsapp.com/'},sender:mediaWin.webContents};
             for(const initiallyMuted of [false,true]){
@@ -31033,7 +31041,7 @@ async function haituoTestSettingsSync() {
             let mutedDuringRequest=false;
             try{
                 translateMap.set('caisheng:translate',async()=>({text:'语音翻译 fixture'}));
-                globalThis.fetch=async(url,options)=>{mutedDuringRequest=mediaWin.webContents.isAudioMuted();return new Response(JSON.stringify({text:'silent voice fixture'}),{status:200})};
+                haituoTranslationFetch=async(url,options)=>{mutedDuringRequest=mediaWin.webContents.isAudioMuted();return new Response(JSON.stringify({text:'silent voice fixture'}),{status:200})};
                 mediaWin.webContents.setAudioMuted(false);
                 await mediaWin.webContents.executeJavaScript(`(()=>{const message=document.createElement('div');message.dataset.id='voice-fixture';message.style.cssText='margin-top:120px;height:120px';message.innerHTML='<div data-testid="msg-container"><audio controls src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="></audio></div>';document.getElementById('main').append(message)})()`);
                 await delay(2200);
@@ -31043,7 +31051,7 @@ async function haituoTestSettingsSync() {
                 check(await mediaWin.webContents.executeJavaScript(`!!document.querySelector('.haituo-voice-result')&&[...document.querySelectorAll('audio')].every(a=>a.paused)`),'Silent transcription did not complete or stop playback');
             }finally{translateMap.set('caisheng:translate',translateOriginal)}
             stages.push({source:'audio-routing-fixture',audioCalls,rejected,transcribed,groq,dedicated,mutedDuringRequest});
-        }finally{globalThis.fetch=savedFetch}
+        }finally{haituoTranslationFetch=savedFetch}
         try {
             const handler=p.ipcMain._invokeHandlers.get('caisheng:translate');
             const value={text:'Hello. Please keep the number 113.',targetLanguage:'zh-CN',provider:'google-free',purpose:'chat'};
@@ -31310,7 +31318,7 @@ if(process.env.HAITUO_SCROLL_TEST==='1' && $u==='signal-main') {
     });
 }
 
-if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TEST === '1') && $u === 'signal-main') {
+if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TEST === '1' || process.env.HAITUO_SETTINGS_TEST === '1') && $u === 'signal-main') {
     // Runtime fixtures launch the executable directly, without the user's Dock/taskbar activation.
     // Present the root window before testing so the visibility-gated renderer can initialize.
     p.app.whenReady().then(() => {
@@ -31325,6 +31333,7 @@ if ((process.env.HAITUO_VERIFY_RUNTIME === '1' || process.env.HAITUO_MESSAGE_TES
                     Z.webContents.send('activate');
                 });
                 if (process.env.HAITUO_MESSAGE_TEST === '1') setTimeout(haituoTestMessageScanning,1000);
+                if (process.env.HAITUO_SETTINGS_TEST === '1') setTimeout(haituoTestSettingsSync,1000);
                 return;
             }
             if (Date.now() < deadline) setTimeout(present, 100);

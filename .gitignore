@@ -7,3 +7,5 @@
 /windows/verification/
 __pycache__/
 *.pyc
+
+/source-packages/

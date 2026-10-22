@@ -468,21 +468,12 @@ function translationAction(e, t, n, icon = "📋") {
 async function translate(e) {
     const t = e.trim();
     if (!HAN.test(t)) return t;
-    let n;
-    try {
-        n = await ipcRenderer.invoke("caisheng:translate", {
-            text: t,
-            targetLanguage: settings.targetLanguage || "en",
-            provider: settings.inputTranslationProvider || "google-free",
-            purpose: "input"
-        });
-    } catch {
-        n = await ipcRenderer.invoke("caisheng:translate", {
-            text: t,
-            targetLanguage: settings.targetLanguage || "en",
-            provider: "google-free"
-        });
-    }
+    const n = await ipcRenderer.invoke("caisheng:translate", {
+        text: t,
+        targetLanguage: settings.targetLanguage || "en",
+        provider: settings.inputTranslationProvider || "google-free",
+        purpose: "input"
+    });
     if (!n || "string" != typeof n.text || !n.text.trim()) throw new Error("翻译服务未返回结果");
     return polishOutgoingEnglish(t, n.text.trim());
 }
@@ -949,7 +940,7 @@ function showPanel(e) {
         flex: "0 0 92px",
         margin: "0"
     });
-    for (const [e, t] of [ [ "en", "English" ], [ "ja", "日本語" ], [ "ko", "한국어" ], [ "es", "Español" ] ]) {
+    for (const [e, t] of [["zh-CN", "中文"], ["en", "English"], ["ja", "日本語"], ["ko", "한국어"], ["es", "Español"], ["fr", "法语 · Français"], ["de", "德语 · Deutsch"], ["it", "意大利语 · Italiano"], ["pt", "葡萄牙语 · Português"], ["ru", "俄语 · Русский"], ["ar", "阿拉伯语 · العربية"], ["th", "泰语 · ไทย"], ["vi", "越南语 · Tiếng Việt"], ["id", "印尼语 · Indonesia"], ["ms", "马来语 · Melayu"], ["hi", "印地语 · हिन्दी"], ["tr", "土耳其语 · Türkçe"], ["nl", "荷兰语 · Nederlands"], ["pl", "波兰语 · Polski"], ["uk", "乌克兰语 · Українська"]]) {
         const o = document.createElement("option");
         o.value = e, o.textContent = t, n.append(o);
     }

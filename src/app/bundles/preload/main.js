@@ -610,9 +610,6 @@ http://jedwatson.github.io/classnames
             caishengGetWebUnreadCount(e) {
                 return u.ipcRenderer.invoke(`caisheng:get-web-unread-count`, e);
             },
-            caishengGetMarketTicker() {
-                return u.ipcRenderer.invoke(`caisheng:get-market-ticker`);
-            },
             caishengLaunchSignalProfile(e) {
                 return u.ipcRenderer.invoke(`caisheng:launch-signal-profile`, e);
             },
@@ -229954,50 +229951,6 @@ function haituoCachedSignalTranslation(text) {
             return [ ECr ];
         }
     }
-    function haituoLondonGoldClock() {
-        try {
-            const londonFormatter = new Intl.DateTimeFormat(`en-GB`, {
-                timeZone: `Europe/London`,
-                weekday: `short`,
-                hour: `2-digit`,
-                minute: `2-digit`,
-                hourCycle: `h23`
-            }), isOpenAt = date => {
-                const values = Object.fromEntries(londonFormatter.formatToParts(date).map(part => [ part.type, part.value ])), minutes = Number(values.hour) * 60 + Number(values.minute);
-                if ([ `Mon`, `Tue`, `Wed`, `Thu` ].includes(values.weekday)) return !0;
-                if (values.weekday === `Fri`) return minutes < 22 * 60;
-                if (values.weekday === `Sun`) return minutes >= 22 * 60;
-                return !1;
-            }, now = new Date, open = isOpenAt(now);
-            let before = now.getTime(), after = before;
-            for (let step = 1; step <= 336; step += 1) {
-                const candidate = now.getTime() + step * 30 * 60 * 1e3;
-                if (isOpenAt(new Date(candidate)) !== open) {
-                    after = candidate;
-                    break;
-                }
-                before = candidate;
-            }
-            for (let step = 0; step < 14 && after > before; step += 1) {
-                const middle = Math.floor((before + after) / 2);
-                isOpenAt(new Date(middle)) === open ? before = middle : after = middle;
-            }
-            const hours = Math.max(1, Math.ceil((after - now.getTime()) / 36e5)), londonTime = new Intl.DateTimeFormat(`zh-CN`, {
-                timeZone: `Europe/London`,
-                hour: `2-digit`,
-                minute: `2-digit`,
-                hourCycle: `h23`
-            }).format(now);
-            return {
-                time: londonTime,
-                open,
-                status: open ? `正在开盘` : `已停盘`,
-                next: open ? `距停盘还有 ${hours} 小时` : `距开盘还有 ${hours} 小时`
-            };
-        } catch {
-            return { time: `--:--`, open: !1, status: `时间校准中`, next: `等待伦敦时间` };
-        }
-    }
     function SCr({signal: e}) {
         let {user: t} = lCr(), [r, a] = (0, D9.useState)(xCr), [o, s] = (0, D9.useState)(() => {
             try {
@@ -230010,7 +229963,7 @@ function haituoCachedSignalTranslation(text) {
         D9.useState)(!1), [u, d] = (0, D9.useState)(!1), [f, p] = (0, D9.useState)(yCr), [m, h] = (0, 
         D9.useState)(x_), [g, _] = (0, D9.useState)(``), [v, y] = (0, D9.useState)({}), [b, x] = (0, 
         D9.useState)(), [S, C] = (0, D9.useState)(), [w, T] = (0, D9.useState)(``), [E, D] = (0, 
-        D9.useState)(), [haituoHome, haituoSetHome] = (0, D9.useState)(!1), [haituoPlatformFilter, haituoSetPlatformFilter] = (0, D9.useState)(`all`), [haituoMarket, haituoSetMarket] = (0, D9.useState)({}), [haituoLondonGold, haituoSetLondonGold] = (0, D9.useState)(haituoLondonGoldClock), [qLoaded, qSetLoaded] = (0, D9.useState)(() => {
+        D9.useState)(), [haituoHome, haituoSetHome] = (0, D9.useState)(!1), [haituoPlatformFilter, haituoSetPlatformFilter] = (0, D9.useState)(`all`), [qLoaded, qSetLoaded] = (0, D9.useState)(() => {
             try {
                 let e = localStorage.getItem(`caisheng.lastWorkspace`);
                 return e && e !== `signal-main` ? [ e ] : [];
@@ -230096,24 +230049,6 @@ function haituoCachedSignalTranslation(text) {
                 [e.id]: Math.max(0, Math.floor(Number(e.count) || 0))
             }));
         }), []), (0, D9.useEffect)(() => {
-            let stopped = !1;
-            const refresh = async () => {
-                try {
-                    const data = await window.SignalContext.caishengGetMarketTicker();
-                    stopped || haituoSetMarket(data && typeof data === `object` ? data : {});
-                } catch {}
-            };
-            refresh();
-            const timer = setInterval(refresh, 6e4);
-            return () => {
-                stopped = !0, clearInterval(timer);
-            };
-        }, []), (0, D9.useEffect)(() => {
-            const refresh = () => haituoSetLondonGold(haituoLondonGoldClock());
-            refresh();
-            const timer = setInterval(refresh, 3e4);
-            return () => clearInterval(timer);
-        }, []), (0, D9.useEffect)(() => {
             if (!haituoHome) {
                 const frame = requestAnimationFrame(() => A(o));
                 return () => cancelAnimationFrame(frame);
@@ -230405,7 +230340,7 @@ function haituoCachedSignalTranslation(text) {
                 children: [ (0, O9.jsxs)(`div`, {
                     className: `HaituoBrand`,
                     children: [ (0, O9.jsx)(`img`, { className: `HaituoBrand__coin`, src: `images/haituo-coin.png`, alt: `海拓` }), (0, O9.jsxs)(`span`, {
-                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: m.brandBadgeText ?? `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.7` }) ]
+                        children: [ (0, O9.jsxs)(`strong`, { children: [ `海拓集团`, (0, O9.jsx)(`em`, { children: m.brandBadgeText ?? `SVIP` }) ] }), (0, O9.jsx)(`small`, { children: `当前版本 1.3.8` }) ]
                     }) ]
                 }), (0, O9.jsxs)(`div`, {
                     className: `HaituoPlatformFilters`,
@@ -230419,16 +230354,6 @@ function haituoCachedSignalTranslation(text) {
                         type: `button`, className: !haituoHome && haituoPlatformFilter === `whatsapp` ? `is-active` : void 0, title: `只显示 WhatsApp`, "aria-label": `只显示 WhatsApp`, onClick: e => { e.stopPropagation(), haituoSetHome(!1), haituoSetPlatformFilter(`whatsapp`); },
                         children: [ (0, O9.jsx)(`img`, { src: `images/haituo-whatsapp.svg`, alt: `WhatsApp` }), (() => { const count = r.filter(e => e.platformId === `whatsapp`).reduce((sum, e) => sum + (Number(v[e.id]) || 0), 0); return count > 0 ? (0, O9.jsx)(`span`, { className: `HaituoPlatformFilters__badge`, children: count > 99 ? `99+` : count }) : null; })() ]
                     }) ]
-                }), (0, O9.jsx)(`div`, {
-                    className: `HaituoMarketTicker`,
-                    title: `行情每 60 秒更新；伦敦黄金按 Europe/London 自动切换冬令时/夏令时。伦敦现货黄金为场外市场，08:00 表示伦敦主要交易时段开始；LBMA 黄金定价为伦敦时间 10:30 和 15:00。`,
-                    children: [ [ `BTC`, `$`, haituoMarket.btc ], [ `USD`, `¥`, haituoMarket.usd ], [ `现货黄金`, `$`, haituoMarket.gold ] ].map(([label, symbol, item]) => (0, O9.jsxs)(`span`, {
-                        className: item?.change < 0 ? `is-down` : `is-up`,
-                        children: [ (0, O9.jsxs)(`b`, { children: [ label, ` `, symbol, Number.isFinite(Number(item?.price)) ? Number(item.price).toLocaleString(`en-US`, { maximumFractionDigits: 2 }) : `—` ] }), (0, O9.jsx)(`small`, { children: Number.isFinite(Number(item?.change)) ? `${item.change >= 0 ? `▲+` : `▼`}${Number(item.change).toFixed(2)}%` : item ? haituoMarket.cached ? `缓存行情` : `实时` : `重试中` }) ]
-                    }, label)).concat([ (0, O9.jsxs)(`span`, {
-                        className: haituoLondonGold.open ? `is-up HaituoMarketTicker__london` : `HaituoMarketTicker__london is-closed`,
-                        children: [ (0, O9.jsxs)(`b`, { children: [ `伦敦黄金 `, haituoLondonGold.time ] }), (0, O9.jsx)(`small`, { children: `${haituoLondonGold.status} · ${haituoLondonGold.next}` }) ]
-                    }, `london-gold`) ])
                 }), (0, O9.jsx)(`div`, {
                     className: `CaishengPlatformShell__tabs`,
                     children: r.filter(e => bCr(e.platformId, t) && (haituoPlatformFilter === `all` || e.platformId === haituoPlatformFilter)).map(e => (0, O9.jsxs)(`button`, {

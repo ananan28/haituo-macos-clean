@@ -1656,3 +1656,116 @@ new MutationObserver(records => {
 }
 if (document.documentElement) haituoObserveTranslatorLayout();
 else document.addEventListener('DOMContentLoaded',haituoObserveTranslatorLayout,{once:true});
+
+// HAITUO_CHAT_PREVIEW_START
+function haituoInstallChatHoverPreview({ document, window, translate, delayMs = 650 }) {
+    const rows = '#pane-side [role="row"],#pane-side [role="listitem"],#pane-side [data-testid="cell-frame-container"],[data-testid="chat-list"] [role="row"],[aria-label="Chat list"] [role="row"],[aria-label="聊天列表"] [role="row"]';
+    const cache = new Map(), pending = new Map(), nativeTitles = new Map();
+    let active, snapshot, timer, popup, sourceBox, targetBox, sequence = 0, observer;
+    const textOf = node => {
+        const visible = String(node?.innerText || node?.textContent || '');
+        const held = nativeTitles.get(node);
+        const title = node?.getAttribute('title') || (held?.visible === visible ? held.title : '');
+        return String(title || visible).replace(/\u200e|\u200f/gu, '').trim();
+    };
+    function read(row) {
+        const heading = row.querySelector('[data-testid="cell-frame-title"], [data-testid="cell-frame-primary"] [title], [data-testid="cell-frame-primary"], [role="gridcell"] span[title]') || row.querySelector('span[title]');
+        const name = textOf(heading);
+        const secondary = row.querySelector('[data-testid="cell-frame-secondary"], [data-testid="chat-list-subtitle"]');
+        let node = [...nativeTitles.keys()].find(el => secondary?.contains(el)) || secondary?.querySelector('span[title],span[dir="auto"],[dir="auto"]') || secondary;
+        if (!node) node = [...row.querySelectorAll('span[title]'),...nativeTitles.keys()].filter(el => row.contains(el) && el !== heading && !heading?.contains(el) && textOf(el) !== name && !/^\d{1,2}:\d{2}$|^\d+$/u.test(textOf(el))).at(-1);
+        const text = textOf(node);
+        return text ? { text, name, node, key: name + '\0' + text } : null;
+    }
+    const valid = (row, data, id) => sequence === id && active === row && row.isConnected && read(row)?.key === data.key;
+    function position() {
+        if (!popup || !active) return;
+        const box = active.getBoundingClientRect(), width = Math.min(420, window.innerWidth - 24);
+        popup.style.width = width + 'px';
+        const left = box.right + width + 12 <= window.innerWidth ? box.right + 8 : Math.max(12, window.innerWidth - width - 12);
+        popup.style.left = left + 'px';
+        popup.style.top = Math.max(12, Math.min(box.top, window.innerHeight - popup.getBoundingClientRect().height - 12)) + 'px';
+    }
+    function hide() {
+        sequence++; clearTimeout(timer); timer = undefined;
+        observer?.disconnect(); observer = undefined;
+        for (const [node, held] of nativeTitles) if (node.isConnected && !node.hasAttribute('title') && String(node.innerText || node.textContent || '') === held.visible) node.setAttribute('title',held.title);
+        nativeTitles.clear();
+        active = undefined; snapshot = undefined;
+        popup?.remove(); popup = undefined;
+    }
+    function create(data) {
+        // Replace only the native preview title while our bilingual tooltip is visible.
+        // No clicks, focus, navigation, or read receipts are issued.
+        const title = data.node?.getAttribute('title');
+        if (title) { nativeTitles.set(data.node,{title,visible:String(data.node.innerText || data.node.textContent || '')}); data.node.removeAttribute('title'); }
+        if (popup) popup.remove();
+        popup = document.createElement('section'); popup.id = 'haituo-whatsapp-chat-preview';
+        popup.setAttribute('role', 'tooltip'); popup.setAttribute('aria-label', '消息双语预览');
+        Object.assign(popup.style, { position:'fixed', zIndex:'2147483647', boxSizing:'border-box', padding:'12px', borderRadius:'10px', border:'1px solid #52616b', background:'#202c33', color:'#e9edef', boxShadow:'0 6px 24px #0006', font:'14px/1.5 system-ui,sans-serif', maxHeight:'calc(100vh - 24px)', overflow:'auto', textAlign:'left' });
+        const add = (label, id, text) => {
+            const title = document.createElement('strong'); title.textContent = label;
+            Object.assign(title.style,{display:'block',color:'#55d6b0',fontSize:'12px',marginBottom:'4px'});
+            const body = document.createElement('div'); body.id = id; body.textContent = text;
+            Object.assign(body.style,{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:'24vh',overflowY:'auto',marginBottom:'8px',userSelect:'text'});
+            popup.append(title,body); return body;
+        };
+        if (data.name) { const name=document.createElement('div');name.textContent=data.name;name.style.fontWeight='700';name.style.marginBottom='8px';popup.append(name); }
+        sourceBox = add('原文', 'haituo-chat-preview-source', data.text);
+        targetBox = add('中文翻译', 'haituo-chat-preview-translation', '正在翻译…');
+        popup.addEventListener('pointerleave', e => { if (!active?.contains(e.relatedTarget)) hide(); });
+        // Preview interactions never bubble into WhatsApp's chat-row navigation.
+        popup.addEventListener('click', e => e.stopPropagation());
+        (document.body || document.documentElement).append(popup); position();
+    }
+    async function load(row, data, id) {
+        if (!valid(row,data,id)) return;
+        create(data);
+        if (cache.has(data.text)) { targetBox.textContent=cache.get(data.text); position(); return; }
+        try {
+            // One outstanding preview request per account; fast hovering must not fill the API queue.
+            if (pending.size && !pending.has(data.text)) await Promise.allSettled([...pending.values()]);
+            if (!valid(row,data,id)) return;
+            if (!pending.has(data.text)) {
+                const task = Promise.resolve().then(() => translate(data.text)).then(result => {
+                    const text=String(typeof result === 'string' ? result : result?.text || '').trim();
+                    if (!text) throw Error('empty preview');
+                    cache.set(data.text,text); if(cache.size>128)cache.delete(cache.keys().next().value); return text;
+                }).finally(() => pending.delete(data.text));
+                pending.set(data.text,task);
+            }
+            const translated=await pending.get(data.text);
+            if (valid(row,data,id)) { targetBox.textContent=translated; position(); }
+        } catch {
+            if (valid(row,data,id)) { targetBox.textContent='暂时无法翻译，请移开鼠标后再次悬停重试'; position(); }
+        }
+    }
+    function start(row) {
+        const data=read(row); if(!data){hide();return;}
+        if(active===row && snapshot?.key===data.key)return;
+        hide();active=row;snapshot=data;const id=sequence;
+        observer=new window.MutationObserver(() => {
+            if(!row.isConnected){hide();return;}
+            if(read(row)?.key!==snapshot?.key)start(row);
+        });
+        observer.observe(row,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['title','aria-label','data-id']});
+        timer=setTimeout(() => load(row,data,id),delayMs);
+    }
+    const over=e=>{const row=e.target?.closest?.(rows);if(row)start(row);};
+    const out=e=>{if(active && !active.contains(e.relatedTarget) && !popup?.contains(e.relatedTarget))hide();};
+    const close=e=>{if(!popup?.contains(e.target))hide();};
+    const key=e=>{if(e.key==='Escape')hide();};
+    const visible=()=>{if(document.hidden)hide();};
+    document.addEventListener('pointerover',over,true);document.addEventListener('pointerout',out,true);
+    document.addEventListener('pointerdown',close,true);document.addEventListener('wheel',close,true);document.addEventListener('scroll',close,true);
+    document.addEventListener('keydown',key,true);document.addEventListener('visibilitychange',visible);
+    window.addEventListener('blur',hide);window.addEventListener('resize',hide);
+    return { hide, destroy(){hide();document.removeEventListener('pointerover',over,true);document.removeEventListener('pointerout',out,true);document.removeEventListener('pointerdown',close,true);document.removeEventListener('wheel',close,true);document.removeEventListener('scroll',close,true);document.removeEventListener('keydown',key,true);document.removeEventListener('visibilitychange',visible);window.removeEventListener('blur',hide);window.removeEventListener('resize',hide);} };
+}
+// HAITUO_CHAT_PREVIEW_END
+
+if (location.hostname === 'web.whatsapp.com') {
+    window.__haituoChatPreview = haituoInstallChatHoverPreview({ document, window,
+        translate: text => ipcRenderer.invoke('caisheng:translate', { text, targetLanguage:'zh-CN', provider:settings.chatTranslationProvider || 'google-free', purpose:'chat' })
+    });
+}

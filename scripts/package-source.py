@@ -15,7 +15,7 @@ with zipfile.ZipFile(out/(name+'.zip'),'w',zipfile.ZIP_DEFLATED,compresslevel=6)
         if not rel:continue
         path=root/rel
         if not path.is_file():raise RuntimeError('Missing tracked file: '+rel)
-        data=path.read_bytes();manifest[rel]=hashlib.sha256(data).hexdigest();archive.writestr(name+'/'+rel,data)
+        data=path.read_bytes();manifest[rel]=hashlib.sha256(data).hexdigest();archive.write(path,name+'/'+rel)
     archive.writestr(name+'/SOURCE-SNAPSHOT.json',json.dumps({'version':version,'platform':args.target,'commit':commit,'files':manifest},ensure_ascii=False,indent=2))
     archive.writestr(name+'/BUILD-THIS-PLATFORM.txt',f'海拓 {version} {label} 开发工程\n\n先安装 Python 3.12、Node.js 22 和 Git。\n在{label}电脑进入本目录执行：\npython scripts/build.py --target {args.target} --test\n\n包含当前客户端运行代码、资源、依赖、构建及测试，可换电脑或仓库继续开发。\n首次构建需要联网下载 Electron、工具及平台原生依赖。\n原始 TS/TSX、未取得的私有后端不在此包，详见 START-HERE.md。\n不包含聊天数据、账号会话或个人 API 密钥。\nGit commit: {commit}\n')
 with zipfile.ZipFile(out/(name+'.zip')) as archive:

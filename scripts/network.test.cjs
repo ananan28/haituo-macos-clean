@@ -58,19 +58,9 @@ test('long-message retry reuses successfully completed chunks',async()=>{
   await assert.rejects(ctx.Xp(req),/network/);fail=false;const result=await ctx.Xp(req);
   assert.ok(result.text);assert.equal(calls.filter(t=>t.startsWith('A')).length,1);assert.equal(calls.filter(t=>t.startsWith('B')).length,2);assert.equal(calls.filter(t=>t.startsWith('C')).length,1);
 });
-test('market update shares in-flight work, caches for one minute, and uses 3 primary calls',async()=>{
-  let calls=0;
-  const ctx={Date,Promise,HaituoMarketTickerCache:{at:0,value:null},haituoLoadMarketDiskCache(){},haituoSaveMarketDiskCache(){},
-    haituoMarketItem:price=>Number(price)>0?{price}:null,
-    haituoMarketJson:async url=>{calls++;return url.includes('coingecko')?{bitcoin:{usd:100}}:{items:[{xauPrice:200}]}},
-    haituoFrankfurterUsdTicker:async()=>{calls++;return{price:7}}};vm.createContext(ctx);
-  const a=code.indexOf('async function haituoFirstTicker('),b=code.indexOf('\nfunction tm()',a);vm.runInContext(code.slice(a,b),ctx);
-  const results=await Promise.all([ctx.haituoGetMarketTicker(),ctx.haituoGetMarketTicker(),ctx.haituoGetMarketTicker()]);assert.equal(calls,3);assert.ok(results[0].btc);await ctx.haituoGetMarketTicker();assert.equal(calls,3);
-});
-test('market fallback is sequential and capped at two sources',async()=>{
-  let calls=0,active=0,max=0;const load=async result=>{calls++;max=Math.max(max,++active);await Promise.resolve();active--;return result};
-  const ctx={Promise};vm.createContext(ctx);const a=code.indexOf('async function haituoFirstTicker('),b=code.indexOf('\nlet haituoMarketPending',a);vm.runInContext(code.slice(a,b),ctx);
-  assert.equal(await ctx.haituoFirstTicker([()=>load(null),()=>load(null),()=>load('extra')]),null);assert.equal(calls,2);assert.equal(max,1);
+test('market UI, IPC and remote endpoints are removed',()=>{
+  const renderer=fs.readFileSync(__dirname+'/../src/app/bundles/preload/main.js','utf8');
+  for(const source of [code,renderer])assert.doesNotMatch(source,/HaituoMarketTicker|haituoGetMarketTicker|caisheng:get-market-ticker|api\.coingecko|gold-api\.com|haituoLondonGold/);
 });
 test('all four target language selectors include the same 20 codes',()=>{
   const renderer=fs.readFileSync(__dirname+'/../src/app/bundles/preload/main.js','utf8'),web=fs.readFileSync(__dirname+'/../src/app/js/caisheng-webview-preload.js','utf8');
@@ -87,4 +77,11 @@ test('WhatsApp settings refresh preserves every selectable target language',asyn
     const ctx={settings:{targetLanguage:'en'},ipcRenderer:{invoke:async()=>({targetLanguage:target})},haituoPendingValues:()=>({}),applyChatColor(){},applyTranslatorTheme(){},haituoSyncOutgoingControls(){}};
     vm.createContext(ctx);vm.runInContext(web.slice(start,end),ctx);await ctx.refreshSettings();assert.equal(ctx.settings.targetLanguage,target);
   }
+});
+
+test('hover preview never calls chat navigation, focus, or read receipt APIs',()=>{
+  const web=fs.readFileSync(__dirname+'/../src/app/js/caisheng-webview-preload.js','utf8');
+  const source=web.slice(web.indexOf('// HAITUO_CHAT_PREVIEW_START'),web.indexOf('// HAITUO_CHAT_PREVIEW_END'));
+  assert.doesNotMatch(source,/\.click\(|\.focus\(|sendRead|markRead|markAsRead|loadURL|location\s*=/);
+  assert.ok(source.includes('delayMs = 650'));assert.ok(source.includes('pending.size'));assert.ok(source.includes('cache.size>128'));
 });

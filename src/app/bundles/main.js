@@ -25218,312 +25218,11 @@ function em(e) {
     (0, m.renameSync)(temporary, Qp);
 }
 
-let HaituoMarketTickerCache = {
-    at: 0,
-    value: null
-};
-
-let HaituoMarketDiskCacheLoaded = !1;
-
-function haituoMarketDiskCachePath() {
-    try {
-        return (0, s.join)(p.app.getPath(`userData`), `haituo-market-cache.json`);
-    } catch {
-        return ``;
-    }
-}
-
-function haituoLoadMarketDiskCache() {
-    if (HaituoMarketDiskCacheLoaded) return;
-    HaituoMarketDiskCacheLoaded = !0;
-    try {
-        const cachePath = haituoMarketDiskCachePath(), value = JSON.parse((0, m.readFileSync)(cachePath, `utf8`));
-        if (value && typeof value === `object` && value.currency === `CNY` && (value.btc || value.usd || value.gold)) HaituoMarketTickerCache = {
-            at: 0,
-            value: {
-                ...value,
-                live: !0,
-                cached: !0
-            }
-        };
-    } catch {}
-}
-
-function haituoSaveMarketDiskCache(value) {
-    try {
-        const cachePath = haituoMarketDiskCachePath();
-        if (!cachePath || !value || !(value.btc || value.usd || value.gold)) return;
-        (0, m.mkdirSync)((0, s.dirname)(cachePath), { recursive: !0 }), (0, m.writeFileSync)(cachePath, JSON.stringify(value), `utf8`);
-    } catch {}
-}
-
-function haituoNodeMarketText(url, timeout = 7e3, redirects = 0) {
-    return new Promise((resolve, reject) => {
-        if (redirects > 4) return reject(Error(`行情接口重定向过多`));
-        let parsed;
-        try {
-            parsed = new URL(url);
-        } catch (error) {
-            reject(error);
-            return;
-        }
-        const client = require(parsed.protocol === `https:` ? `node:https` : `node:http`), request = client.get(parsed, {
-            headers: {
-                accept: `application/json,text/plain,text/csv,text/html,*/*`,
-                "cache-control": `no-cache`,
-                "user-agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Haituo/20.29`
-            }
-        }, response => {
-            const status = Number(response.statusCode) || 0;
-            if (status >= 300 && status < 400 && response.headers.location) {
-                const next = new URL(response.headers.location, parsed).href;
-                response.resume(), haituoNodeMarketText(next, timeout, redirects + 1).then(resolve, reject);
-                return;
-            }
-            if (status < 200 || status >= 300) {
-                response.resume(), reject(Error(`行情接口 HTTP ${status}`));
-                return;
-            }
-            response.setEncoding(`utf8`);
-            let body = ``;
-            response.on(`data`, chunk => {
-                body += chunk;
-                body.length > 5 * 1024 * 1024 && response.destroy(Error(`行情数据过大`));
-            }), response.on(`end`, () => resolve(body)), response.on(`error`, reject);
-        });
-        request.setTimeout(timeout, () => request.destroy(Error(`行情接口超时`))), request.on(`error`, reject);
-    });
-}
-
-function haituoExecMarketText(program, args, timeout = 7e3) {
-    return new Promise((resolve, reject) => {
-        (0, c.execFile)(program, args, {
-            windowsHide: !0,
-            timeout,
-            maxBuffer: 5 * 1024 * 1024,
-            encoding: `utf8`
-        }, (error, stdout) => {
-            if (error) return reject(error);
-            const body = String(stdout ?? ``).trim();
-            body ? resolve(body) : reject(Error(`系统行情通道未返回数据`));
-        });
-    });
-}
-
-async function haituoSystemMarketText(url, timeout = 7e3) {
-    if (process.platform === `darwin`) return haituoExecMarketText(`/usr/bin/curl`, [ `-L`, `--silent`, `--show-error`, `--fail`, `--max-time`, String(Math.max(2, Math.ceil(timeout / 1e3))), `-A`, `Mozilla/5.0 Haituo-Market-Ticker`, url ], timeout + 1e3);
-    if (process.platform !== `win32`) throw Error(`系统行情通道不支持当前平台`);
-    try {
-        return await haituoExecMarketText(`curl.exe`, [ `-L`, `--silent`, `--show-error`, `--fail`, `--max-time`, String(Math.max(2, Math.ceil(timeout / 1e3))), `-A`, `Mozilla/5.0 Haituo-Market-Ticker/20.29`, url ], timeout + 1e3);
-    } catch {}
-    return haituoNodeMarketText(url, timeout);
-}
-
-async function haituoSystemMarketJson(url, timeout = 7e3) {
-    return JSON.parse(await haituoSystemMarketText(url, timeout));
-}
-
-async function haituoMarketJson(url, timeout = 7e3, init = {}) {
-    const controller = new AbortController, timer = setTimeout(() => controller.abort(), timeout);
-    let firstError;
-    try {
-        const response = await haituoTranslationFetch(url, {
-            method: init.method ?? `GET`,
-            signal: controller.signal,
-            headers: {
-                accept: `application/json`,
-                "cache-control": `no-cache`,
-                "user-agent": `Haituo-Market-Ticker/20.29`,
-                ...init.headers
-            },
-            ...init.body === void 0 ? {} : { body: init.body }
-        });
-        if (!response.ok) throw Error(`行情接口 HTTP ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        firstError = error;
-    } finally {
-        clearTimeout(timer);
-    }
-    throw firstError;
-}
-
-async function haituoMarketText(url, timeout = 7e3) {
-    const controller = new AbortController, timer = setTimeout(() => controller.abort(), timeout);
-    let firstError;
-    try {
-        const response = await haituoTranslationFetch(url, {
-            method: `GET`,
-            signal: controller.signal,
-            headers: {
-                accept: `text/plain,text/csv,*/*`,
-                "cache-control": `no-cache`,
-                "user-agent": `Mozilla/5.0 Haituo-Market-Ticker/20.29`
-            }
-        });
-        if (!response.ok) throw Error(`行情接口 HTTP ${response.status}`);
-        return await response.text();
-    } catch (error) {
-        firstError = error;
-    } finally {
-        clearTimeout(timer);
-    }
-    throw firstError;
-}
-
-function haituoMarketItem(price, change, updatedAt = Date.now()) {
-    const value = Number(price), percent = Number(change);
-    if (!Number.isFinite(value) || value <= 0) return null;
-    return {
-        price: value,
-        change: Number.isFinite(percent) ? percent : null,
-        updatedAt: Number.isFinite(Number(updatedAt)) ? Number(updatedAt) : Date.now()
-    };
-}
-
-async function haituoYahooTicker(symbol) {
-    const data = await haituoMarketJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`), meta = data?.chart?.result?.[0]?.meta ?? {}, price = Number(meta.regularMarketPrice), previous = Number(meta.chartPreviousClose ?? meta.previousClose);
-    return haituoMarketItem(price, Number.isFinite(previous) && previous > 0 ? (price - previous) / previous * 100 : null, Number(meta.regularMarketTime) * 1e3);
-}
-
-async function haituoGoogleFinanceTicker(symbol) {
-    const html = await haituoMarketText(`https://www.google.com/finance/quote/${encodeURIComponent(symbol)}`, 4500), priceText = html.match(/class="YMlKec fxKbKc"[^>]*>([^<]+)</u)?.[1] ?? html.match(/data-last-price="([0-9.,]+)"/u)?.[1] ?? ``, price = Number(priceText.replace(/[^0-9.-]/gu, ``)), changeText = html.match(/class="JwB6zf"[^>]*>\s*([+\-−]?[0-9.,]+)%/u)?.[1]?.replace(`−`, `-`).replace(/,/gu, ``);
-    return haituoMarketItem(price, changeText === void 0 ? null : Number(changeText));
-}
-
-async function haituoFrankfurterUsdTicker() {
-    const data = await haituoMarketJson(`https://api.frankfurter.app/latest?from=USD&to=CNY`, 4500);
-    return haituoMarketItem(data?.rates?.CNY, null, Date.parse(data?.date ?? ``));
-}
-
-async function haituoOpenErUsdTicker() {
-    const data = await haituoMarketJson(`https://open.er-api.com/v6/latest/USD`, 4500);
-    return haituoMarketItem(data?.rates?.CNY, null, Number(data?.time_last_update_unix) * 1e3);
-}
-
-async function haituoFxRatesUsdTicker() {
-    const data = await haituoMarketJson(`https://api.fxratesapi.com/latest?base=USD&currencies=CNY`, 4500);
-    return haituoMarketItem(data?.rates?.CNY, null, Number(data?.timestamp) * 1e3);
-}
-
-async function haituoBinanceTicker(symbol) {
-    const data = await haituoMarketJson(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`);
-    return haituoMarketItem(data?.lastPrice, data?.priceChangePercent, data?.closeTime);
-}
-
-async function haituoBinanceVisionTicker(symbol) {
-    const data = await haituoMarketJson(`https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`);
-    return haituoMarketItem(data?.lastPrice, data?.priceChangePercent, data?.closeTime);
-}
-
-async function haituoKrakenTicker(symbol) {
-    const pair = symbol === `BTC` ? `XBTUSD` : `${symbol}USD`, data = await haituoMarketJson(`https://api.kraken.com/0/public/Ticker?pair=${encodeURIComponent(pair)}`), item = Object.values(data?.result ?? {})[0], price = Number(item?.c?.[0]), open = Number(item?.o);
-    return haituoMarketItem(price, Number.isFinite(open) && open > 0 ? (price - open) / open * 100 : null);
-}
-
-async function haituoBitstampTicker(symbol) {
-    const data = await haituoMarketJson(`https://www.bitstamp.net/api/v2/ticker/${String(symbol).toLowerCase()}usd/`), price = Number(data?.last), open = Number(data?.open);
-    return haituoMarketItem(price, Number.isFinite(open) && open > 0 ? (price - open) / open * 100 : null, Number(data?.timestamp) * 1e3);
-}
-
-async function haituoKuCoinTicker(symbol) {
-    const data = await haituoMarketJson(`https://api.kucoin.com/api/v1/market/stats?symbol=${encodeURIComponent(symbol)}-USDT`), item = data?.data;
-    return haituoMarketItem(item?.last, Number(item?.changeRate) * 100, Number(item?.time));
-}
-
-async function haituoCoinCapTicker(asset) {
-    const data = await haituoMarketJson(`https://api.coincap.io/v2/assets/${encodeURIComponent(asset)}`);
-    return haituoMarketItem(data?.data?.priceUsd, data?.data?.changePercent24Hr, data?.timestamp);
-}
-
-async function haituoCoinbaseTicker(symbol) {
-    const data = await haituoMarketJson(`https://api.exchange.coinbase.com/products/${encodeURIComponent(symbol)}-USD/stats`), price = Number(data?.last), open = Number(data?.open);
-    return haituoMarketItem(price, Number.isFinite(open) && open > 0 ? (price - open) / open * 100 : null);
-}
-
-async function haituoOkxTicker(symbol) {
-    const data = await haituoMarketJson(`https://www.okx.com/api/v5/market/ticker?instId=${encodeURIComponent(symbol)}-USDT`), item = data?.data?.[0], price = Number(item?.last), open = Number(item?.open24h);
-    return haituoMarketItem(price, Number.isFinite(open) && open > 0 ? (price - open) / open * 100 : null, item?.ts);
-}
-
-async function haituoBybitTicker(symbol) {
-    const data = await haituoMarketJson(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${encodeURIComponent(symbol)}USDT`), item = data?.result?.list?.[0];
-    return haituoMarketItem(item?.lastPrice, Number(item?.price24hPcnt) * 100);
-}
-
-async function haituoCryptoCompareTicker(symbol) {
-    const data = await haituoMarketJson(`https://min-api.cryptocompare.com/data/pricemultifull?fsyms=${encodeURIComponent(symbol)}&tsyms=USD`), item = data?.RAW?.[symbol]?.USD;
-    return haituoMarketItem(item?.PRICE, item?.CHANGEPCT24HOUR, Number(item?.LASTUPDATE) * 1e3);
-}
-
-async function haituoFirstTicker(loaders) {
-    return new Promise(resolve => {
-        let remaining = loaders.length, finished = !1;
-        if (!remaining) return resolve(null);
-        (async () => {
-            for (const load of loaders.slice(0, 2)) {
-                try { const value = await load(); if (value) { resolve(value); return; } } catch {}
-            }
-            resolve(null);
-        })();
-    });
-}
-
-let haituoMarketPending;
-async function haituoGetMarketTicker() {
-    haituoLoadMarketDiskCache();
-    if (HaituoMarketTickerCache.value && Date.now() - HaituoMarketTickerCache.at < 60000) return HaituoMarketTickerCache.value;
-    if (!haituoMarketPending) haituoMarketPending = haituoLoadMarketTicker().catch(() => HaituoMarketTickerCache.value).finally(() => { haituoMarketPending = undefined; });
-    return HaituoMarketTickerCache.value || haituoMarketPending;
-}
-async function haituoLoadMarketTicker() {
-    haituoLoadMarketDiskCache();
-    if (HaituoMarketTickerCache.value && Date.now() - HaituoMarketTickerCache.at < 6e4) return HaituoMarketTickerCache.value;
-    const coinGecko = haituoMarketJson(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true`, 3500).then(data => ({
-        btc: haituoMarketItem(data?.bitcoin?.usd, data?.bitcoin?.usd_24h_change, Number(data?.bitcoin?.last_updated_at) * 1e3)
-    })).catch(() => ({}));
-    const [btcFallback, usdFallback, goldFallback] = await Promise.all([
-        coinGecko.then(async data => data.btc || await haituoFirstTicker([ () => haituoBinanceVisionTicker(`BTCUSDT`) ])),
-        haituoFirstTicker([ () => haituoFrankfurterUsdTicker(), () => haituoOpenErUsdTicker() ]),
-        haituoFirstTicker([ async () => {
-            const data = await haituoMarketJson(`https://data-asg.goldprice.org/dbXRates/USD`), item = data?.items?.[0];
-            return haituoMarketItem(item?.xauPrice, item?.pcXau, data?.ts);
-        }, async () => {
-            const data = await haituoMarketJson(`https://api.gold-api.com/price/XAU`);
-            return haituoMarketItem(data?.price, data?.change_percent ?? data?.changePercentage, Date.parse(data?.updatedAt ?? ``));
-        }, async () => {
-            const data = await haituoMarketJson(`https://api.metals.live/v1/spot/gold`), item = Array.isArray(data) ? data.find(e => Number.isFinite(Number(e?.gold))) : null;
-            return haituoMarketItem(item?.gold, null);
-        }, async () => {
-            const csv = await haituoMarketText(`https://stooq.com/q/l/?s=xauusd&i=d`), row = String(csv).trim().split(/\r?\n/u).at(-1)?.split(`,`) ?? [], open = Number(row[3]), close = Number(row[6]);
-            return haituoMarketItem(close, Number.isFinite(open) && open > 0 ? (close - open) / open * 100 : null);
-        }, () => haituoGoogleFinanceTicker(`GCW00:COMEX`), () => haituoYahooTicker(`XAUUSD=X`), () => haituoYahooTicker(`GC=F`) ])
-    ]);
-    let btc = btcFallback, usd = usdFallback, gold = goldFallback;
-    const previous = HaituoMarketTickerCache.value, hasFresh = !!(btc || usd || gold), usedCache = !!previous && (!btc || !usd || !gold);
-    btc ||= previous?.btc ?? null, usd ||= previous?.usd ?? null, gold ||= previous?.gold ?? null;
-    const value = {
-        btc,
-        usd,
-        gold,
-        currency: `CNY`,
-        updatedAt: Date.now(),
-        live: !!(btc || usd || gold),
-        cached: !hasFresh || usedCache
-    };
-    HaituoMarketTickerCache = {
-        at: Date.now(),
-        value
-    };
-    hasFresh && haituoSaveMarketDiskCache(value);
-    return value;
-}
-
 function tm() {
     p.nativeTheme.themeSource = `dark`, Zp = {
         ...Zp,
         ...$p()
-    }, p.ipcMain.removeHandler(`caisheng:get-market-ticker`), p.ipcMain.handle(`caisheng:get-market-ticker`, async () => haituoGetMarketTicker()), p.ipcMain.removeAllListeners(`caisheng:web-unread-direct`), p.ipcMain.on(`caisheng:web-unread-direct`, (e, t) => {
+    }, p.ipcMain.removeAllListeners(`caisheng:web-unread-direct`), p.ipcMain.on(`caisheng:web-unread-direct`, (e, t) => {
         if (!t?.id || !Z || Z.isDestroyed()) return;
         const id = String(t.id), registered = HaituoWebContentsByWorkspace.get(id), sessionWorkspace = HaituoWorkspaceBySession.get(e.sender.session);
         if (registered && registered !== e.sender || !registered && sessionWorkspace !== id) return;
@@ -28978,7 +28677,7 @@ async function haituoShowSettingsWindow() {
 *{box-sizing:border-box}html,body{margin:0;height:100%;font:14px "Microsoft YaHei UI",sans-serif}body{border-radius:12px;overflow:hidden}.title{-webkit-app-region:drag;height:46px;display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:800}.title button{-webkit-app-region:no-drag;margin-left:auto;width:32px;height:32px;padding:0;font-size:20px}.scroll{height:calc(100% - 102px);overflow:auto;padding:12px 14px;scrollbar-color:#a77b29 #0b0905}.intro{padding:9px 11px;border-radius:8px;margin-bottom:10px}.section{margin:14px 0 7px;padding-bottom:5px;font-weight:800}.row{display:flex;gap:8px;align-items:center;margin:9px 0}.row.column{display:flex;flex-direction:column;align-items:stretch}.row>span:first-child{min-width:118px;}.check{display:flex;gap:8px;align-items:center;margin:9px 0}.check input{width:18px;height:18px;}input,select,button{min-height:34px;border-radius:7px;padding:5px 8px;outline:none}input:focus,select:focus{}.grow{flex:1;min-width:0}.colors{display:grid;grid-template-columns:1fr 126px;gap:8px;width:100%}input[type=color]{width:100%;padding:2px}.rainbow{font-weight:800;}.footer{height:56px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 14px;}.primary{font-weight:900;}.muted{}.fontValue{min-width:40px;text-align:right}</style><style>
 body{display:flex;flex-direction:column}.title{flex:0 0 46px}#form{display:flex;flex-direction:column;flex:1;min-height:0;margin:0}.scroll{flex:1;min-height:0;height:auto;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#888 transparent}.footer{flex:0 0 56px}.scroll::-webkit-scrollbar{width:12px}.scroll::-webkit-scrollbar-thumb{background:#888;border-radius:8px;border:3px solid transparent;background-clip:padding-box}.scroll::-webkit-scrollbar-track{background:rgba(127,127,127,.12)}[hidden]{display:none!important}
 </style><style id="haituo-native-settings">${haituoNativeSettingsCss($p().nativeTheme)}</style></head><body>
-<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.3.7 · Signal / WhatsApp / Telegram 通用</div></div>
+<div class="title">海拓设置<button id="close" title="关闭">×</button></div><form id="form"><div class="scroll"><div class="intro"><b>基础翻译设置</b><div>1.3.8 · Signal / WhatsApp / Telegram 通用</div></div>
 <label class="check"><input type="checkbox" name="hideTranslationBox">隐藏输入框翻译工具栏</label>
 <label class="check"><input type="checkbox" name="autoTranslateIncoming">接收回译</label>
 <label class="check"><input type="checkbox" name="backTranslationEnabled">发送回译</label>
@@ -30614,7 +30313,7 @@ async function haituoTestAccountWindows() {
         for (const nativeTheme of [`dark`,`light`,`dark`]) {
             await Z.webContents.executeJavaScript(`(()=>{const label=[...document.querySelectorAll('.CaishengPlatformShell__settings label')].find(label=>label.textContent.includes('原生深色'));const input=label?.querySelector('input');if(!input)throw Error('Native appearance checkbox missing');if(input.checked!==${nativeTheme!==`light`})input.click()})()`);
             await delay(1000);
-            const appearance=await Z.webContents.executeJavaScript(`({mode:document.documentElement.dataset.haituoNativeTheme,bg:getComputedStyle(document.querySelector('.CaishengPlatformShell__nav')).backgroundColor,fg:getComputedStyle(document.querySelector('.HaituoMarketTicker b')).color,backgroundImage:getComputedStyle(document.querySelector('.CaishengPlatformShell__content')).backgroundImage})`);
+            const appearance=await Z.webContents.executeJavaScript(`({mode:document.documentElement.dataset.haituoNativeTheme,bg:getComputedStyle(document.querySelector('.CaishengPlatformShell__nav')).backgroundColor,fg:getComputedStyle(document.querySelector('.HaituoBrand strong')).color,backgroundImage:getComputedStyle(document.querySelector('.CaishengPlatformShell__content')).backgroundImage})`);
             check(appearance.mode===nativeTheme,`Native mode did not synchronize`);
             check(appearance.backgroundImage===`none`,`Wallpaper remained after removing themes`);
             check(appearance.bg!==appearance.fg,`Ticker text is invisible`);
@@ -30721,6 +30420,8 @@ async function haituoTestMessageScanning() {
             if(value.purpose==='input')await delay(100);
             const count=(attempts.get(value.text)||0)+1;attempts.set(value.text,count);
             if(value.text==='Retry without page changes'&&count===1)throw Error('Fixture temporary service failure');
+            if(value.text==='Preview temporary failure'&&count===1)throw Error('Fixture preview temporary failure');
+            if(value.text.startsWith('Slow preview'))await delay(1800);
             return {text:value.purpose==='input'?'English translation':'译：'+value.text};
         });
         win=new p.BrowserWindow({show:true,width:1000,height:900,webPreferences:{partition:'haituo-message-fixture',preload:(0,s.join)($,'js','caisheng-webview-preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
@@ -30820,7 +30521,36 @@ async function haituoTestMessageScanning() {
         mark('toggle-preserves-draft');
         await win.webContents.executeJavaScript(`(()=>{document.getElementById('haituo-whatsapp-quick-input').value='切换保留草稿';const c=document.querySelector('[data-haituo-block-chinese]');c.click();c.click()})()`);await delay(400);
         sent=await sendSnapshot();check(sent.quick==='切换保留草稿','Settings toggle discarded draft');sendingChecks.push({stage:'toggle-preserves-draft'});
-        clearTimeout(watchdog);mark('complete');(0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks},null,2));win.destroy();p.app.exit(0);
+        mark('hover-preview');
+        const hoverHTML=`<html><body><style>body{margin:0;background:#111b21;color:#fff}#pane-side{width:360px}#pane-side [role=row]{height:75px;padding:12px;box-sizing:border-box}#main{position:absolute;left:400px;top:0}</style><div id="pane-side">
+            <div role="row" id="hover-a" onclick="window.openedChats++;this.querySelector('[data-testid=icon-unread-count]').textContent='0'"><div data-testid="cell-frame-primary"><span title="Contact A">Contact A</span></div><div data-testid="cell-frame-secondary"><span dir="auto" title="Preview text without opening chat">Preview text without...</span></div><span data-testid="icon-unread-count">3</span></div>
+            <div role="row" id="hover-b"><div data-testid="cell-frame-primary"><span title="Contact B">Contact B</span></div><div data-testid="cell-frame-secondary"><span dir="auto" title="Slow preview must stay in its own chat">Slow preview...</span></div><span data-testid="icon-unread-count">2</span></div>
+            <div role="row" id="hover-c"><div data-testid="cell-frame-primary"><span title="Contact C">Contact C</span></div><div data-testid="cell-frame-secondary"><span dir="auto" title="Preview temporary failure">Preview temporary failure</span></div><span data-testid="icon-unread-count">1</span></div>
+        </div><div id="main">No conversation opened</div><script>window.openedChats=0;</script></body></html>`;
+        win.webContents.session.protocol.unhandle('https');
+        await win.webContents.session.protocol.handle('https',()=>new Response(hoverHTML,{headers:{'content-type':'text/html;charset=utf-8'}}));
+        await win.loadURL('https://web.whatsapp.com/hover-fixture');await delay(1000);
+        const preview=()=>win.webContents.executeJavaScript(`(()=>{const p=document.getElementById('haituo-whatsapp-chat-preview');return{shown:!!p,source:p?.querySelector('#haituo-chat-preview-source')?.textContent,target:p?.querySelector('#haituo-chat-preview-translation')?.textContent,opened:window.openedChats,unread:[...document.querySelectorAll('[data-testid=icon-unread-count]')].map(n=>n.textContent),nativeTitle:document.querySelector('#hover-a [data-testid=cell-frame-secondary] span').getAttribute('title'),conversation:document.getElementById('main').textContent}})()`);
+        const hover=id=>win.webContents.executeJavaScript(`document.querySelector('#'+${JSON.stringify(id)}+' [data-testid=cell-frame-secondary] span').dispatchEvent(new PointerEvent('pointerover',{bubbles:true}))`);
+        const leave=()=>win.webContents.executeJavaScript(`document.querySelector('#pane-side [role=row]').dispatchEvent(new PointerEvent('pointerout',{bubbles:true,relatedTarget:document.body}))`);
+        const waitPreview=async expected=>{const deadline=Date.now()+7000;while(Date.now()<deadline){const value=await preview();if(value.target===expected)return value;await delay(50)}throw Error('Preview did not show '+expected+'; '+JSON.stringify(await preview()))};
+        const hoverChecks=[],beforeHover=requests.length;
+        await hover('hover-a');await delay(150);await leave();await delay(800);
+        check(requests.length===beforeHover&&!(await preview()).shown,'Fast hover triggered translation');hoverChecks.push('debounced');
+        await hover('hover-a');let shown=await waitPreview('译：Preview text without opening chat');
+        check(shown.source==='Preview text without opening chat'&&shown.nativeTitle===null,'Full native preview was not replaced by bilingual tooltip');
+        check(shown.opened===0&&shown.unread.join(',')==='3,2,1'&&shown.conversation==='No conversation opened','Hover opened/read a conversation');hoverChecks.push('bilingual-without-read');
+        await leave();shown=await preview();check(!shown.shown&&shown.nativeTitle==='Preview text without opening chat','Native tooltip title was not restored');
+        const cachedCount=requests.length;await hover('hover-a');await waitPreview('译：Preview text without opening chat');check(requests.length===cachedCount,'Repeated hover bypassed cache');hoverChecks.push('cached');
+        await leave();await hover('hover-b');await delay(850);await leave();await hover('hover-a');await waitPreview('译：Preview text without opening chat');await delay(1900);
+        check((await preview()).source==='Preview text without opening chat'&&(await preview()).target==='译：Preview text without opening chat','Late preview translation leaked into a different chat');hoverChecks.push('late-result-isolated');
+        await win.webContents.executeJavaScript(`const node=document.querySelector('#hover-a [data-testid=cell-frame-secondary] span');node.title='Latest preview after incoming message';node.textContent='Latest preview...'`);
+        await waitPreview('译：Latest preview after incoming message');hoverChecks.push('updated-summary');
+        await leave();await hover('hover-c');await waitPreview('暂时无法翻译，请移开鼠标后再次悬停重试');await leave();await hover('hover-c');await waitPreview('译：Preview temporary failure');hoverChecks.push('retry-after-error');
+        shown=await preview();check(shown.opened===0&&shown.unread.join(',')==='3,2,1','Preview changed unread count after updates or retries');
+        check(requests.slice(beforeHover).every(value=>value.targetLanguage==='zh-CN'&&value.purpose==='chat'),'Preview used wrong translation direction');
+        await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('blur'))`);check(!(await preview()).shown,'Preview stayed visible after account lost focus');hoverChecks.push('hide-on-account-blur');
+        clearTimeout(watchdog);mark('complete');(0,m.writeFileSync)(output,JSON.stringify({ok:true,result,requests,longLayouts,sendingChecks,hoverChecks},null,2));win.destroy();p.app.exit(0);
     }catch(error){clearTimeout(watchdog);(0,m.writeFileSync)(output,JSON.stringify({ok:false,error:String(error?.stack||error),stage:fixtureStage,requests},null,2));win?.destroy();p.app.exit(1);}
 }
 

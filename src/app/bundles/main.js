@@ -24801,7 +24801,7 @@ async function Xp(e) {
             })
         }, a))?.translations?.[0]?.text?.trim() ?? ``;
     } else if ([`google-cloud`,`google-free`].includes(r)) {
-        o = await require('../js/haituo-google.js').translateGoogle(Yp,{text:t,target:n,provider:r,apiKey:e.googleCloudApiKey||e.apiKey||'',timeout:a});
+        o = await require('../js/haituo-google.js').translateGoogle(Yp,{text:t,target:n,provider:r,apiKey:e.googleCloudApiKey||'',timeout:a});
     } else if (r === `mymemory`) {
         if (!/[\u3400-\u9fff]/u.test(t) && n !== `zh-CN`) throw Error(`MyMemory 仅作为中英翻译备用`);
         let e = /[\u3400-\u9fff]/u.test(t) ? `zh-CN` : `en`, r = new URL(`https://api.mymemory.translated.net/get`);
@@ -25092,7 +25092,7 @@ async function haituoTranslateWithMode(config, request) {
                 ...request,
                 provider,
                 timeoutMs: HaituoNetwork.translationTimeout(provider, request.text, config.timeoutMs),
-                apiKey: provider === `google-cloud` ? (config.googleCloudApiKey || config.apiKey) : provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : route.apiKey,
+                apiKey: provider === `google-cloud` ? config.googleCloudApiKey : provider === `groq` ? config.groqApiKey : provider === `deepl` ? config.deepLApiKey : [ `google-free`, `mymemory` ].includes(provider) ? `` : route.apiKey,
                 endpoint: provider === `groq` ? `https://api.groq.com/openai/v1` : route.endpoint,
                 model: provider === `groq` ? `openai/gpt-oss-120b` : route.model
             };

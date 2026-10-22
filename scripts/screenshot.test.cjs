@@ -42,3 +42,5 @@ test('screenshot default renders both languages in the existing selection',()=>{
  assert.match(script,/function render\(mode='compare'\)/);assert.match(script,/\['原文',result.original\],\['译文',result.translation\]/);
  assert.doesNotMatch(fs.readFileSync(__dirname+'/../src/app/js/haituo-screenshot.js','utf8'),/function showResult|resultWindow/);
 });
+
+test('Google Cloud cannot borrow an unrelated AI key',()=>{assert.match(main,/apiKey:e.googleCloudApiKey\|\|''/);const source=fs.readFileSync(__dirname+'/../src/app/js/haituo-screenshot.js','utf8');assert.doesNotMatch(source,/googleCloudApiKey\|\|cfg.apiKey/);assert.match(source,/安装包内系统 OCR 自检失败/)});

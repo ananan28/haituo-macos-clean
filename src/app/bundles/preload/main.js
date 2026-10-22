@@ -21498,7 +21498,7 @@ http://jedwatson.github.io/classnames
     }
     function haituoProviderConfigured(settings, provider) {
         if ([ `google-free`, `mymemory`, `auto`, `smart-retranslate` ].includes(provider)) return !0;
-        if (provider === `google-cloud`) return !!settings.googleCloudApiKey?.trim?.() || !!settings.apiKey?.trim?.();
+        if (provider === `google-cloud`) return !!settings.googleCloudApiKey?.trim?.();
         if (provider === `groq`) return !!settings.groqApiKey?.trim?.();
         if (provider === `deepl`) return !!settings.deepLApiKey?.trim?.();
         if (provider === `libre`) return !!settings.libreEndpoint?.trim?.();
@@ -209421,7 +209421,7 @@ function haituoCachedSignalTranslation(text) {
                 }), (0, u6.jsxs)(`select`, {
                     "aria-label": `语音转文字服务`, value: a.voiceTranscriptionProvider ?? `groq`, onChange: e => h({ voiceTranscriptionProvider: e.target.value }),
                     children: [ (0, u6.jsx)(`option`, { value: `groq`, children: haituoProviderOptionLabel(a, `groq`, `音转文：Groq Whisper`) }), (0, u6.jsx)(`option`, { value: `openai`, children: haituoProviderOptionLabel(a, `openai`, `音转文：OpenAI Whisper`) }), (0, u6.jsx)(`option`, { value: `keppl`, children: haituoProviderOptionLabel(a, `keppl`, `音转文：Keppl Whisper`) }) ]
-                }), haituoAdvancedSettingsControls(u6,a), [ a.inputTranslationProvider, a.chatTranslationProvider, a.voiceTranscriptionProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, u6.jsx)(`input`, {
+                }), haituoAdvancedSettingsControls(u6,a), [ a.inputTranslationProvider, a.chatTranslationProvider, a.voiceTranscriptionProvider ].some(e => [ `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, u6.jsx)(`input`, {
                     "aria-label": `翻译 API Key`,
                     type: `password`,
                     value: a.apiKey,
@@ -230666,7 +230666,7 @@ function haituoCachedSignalTranslation(text) {
                         children: [ (0, O9.jsx)(`span`, { children: `DeepL API Key` }), (0, O9.jsx)(`input`, { type: `password`, placeholder: `仅保存在本机`, value: m.deepLApiKey ?? ``, onChange: e => N({ deepLApiKey: e.target.value }) }) ]
                     }) : null, m.voiceTranscriptionProvider === `keppl` ? (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`span`, { children: `Keppl API Key` }), (0, O9.jsx)(`input`, { type: `password`, placeholder: `仅保存在本机`, value: m.kepplApiKey ?? ``, onChange: e => N({ kepplApiKey: e.target.value }) }) ]
-                    }) : null, [ m.inputTranslationProvider, m.chatTranslationProvider ].some(e => [ `google-cloud`, `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, O9.jsxs)(`label`, {
+                    }) : null, [ m.inputTranslationProvider, m.chatTranslationProvider ].some(e => [ `openai`, `qwen`, `glm`, `deepseek`, `microsoft` ].includes(e)) ? (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`span`, {
                             children: `OpenAI / 兼容服务 API Key`
                         }), (0, O9.jsx)(`input`, {

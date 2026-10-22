@@ -125,7 +125,7 @@
   "src/app/bundles/dom/loading.js": "67f8e7655689285f654d73cd8568f53c3a35cace93c6818467fa8b5ddce1e12f",
   "src/app/bundles/dom/permissions.js": "54608b0151d309eb8408621ff78d46a7c0486171b09c0f4d0ae148a3af9ca093",
   "src/app/bundles/dom/screenShare.js": "3a93effd63b4882310413566aba13142aea88be76684a5de32fa94ba9ca9dce9",
-  "src/app/bundles/main.js": "e0543a103849a343c621d4ffc883df0c18b7003a721b01cc02927af36bce5d1d",
+  "src/app/bundles/main.js": "baf8b7aedc7f7552761292c54456f5015e2ea818c16f6dc16041c839c02ab9e5",
   "src/app/bundles/preload/about.js": "a5b1566017c8e92504a70050868e1b807851a222305bb00af558c6c4a3a54bca",
   "src/app/bundles/preload/calldiagnostic.js": "645fbeaefe92347a97852bad3a0ac2e44b9b256b52cd9281f95eca698a54f7f6",
   "src/app/bundles/preload/debuglog.js": "a9271e350e0555d28b998b8aa1af4dc1275c7e6e30c1ca69f0e5965ed2629d3f",

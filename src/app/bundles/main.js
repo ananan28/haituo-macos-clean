@@ -30719,7 +30719,7 @@ async function haituoTestSettingsSync() {
         });
         await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
         try {
-            const result=await Yp('http://127.0.0.1:'+server.address().port+'/translation',{},5000);
+            const result=await HaituoNetwork.retryTranslation(()=>Yp('http://127.0.0.1:'+server.address().port+'/translation',{},5000));
             check(result.text==='local network recovery'&&requests===2,'Chromium retry transport failed');
             stages.push({source:'chromium-network-recovery',requests,ok:true});
         } finally { await new Promise(resolve=>server.close(resolve)); }

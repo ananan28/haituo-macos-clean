@@ -124,6 +124,10 @@ def macos(app, tools):
          '--app-bundle-id=com.haituo.desktop','--out=macos/out','--overwrite',
          '--asar.unpack={**/*.node,native/haituo-ocr}','--extend-info=macos/Info.plist'])
     bundle = ROOT/'macos/out/海拓-darwin-arm64/海拓.app'
+    ocr_dest = bundle/'Contents/Resources/app.asar.unpacked/native/haituo-ocr'
+    ocr_dest.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(app/'native/haituo-ocr',ocr_dest)
+    ocr_dest.chmod(0o755)
     p = bundle/'Contents/Info.plist'
     info = plistlib.loads(p.read_bytes());info['LSUIElement']=True;info.pop('LSBackgroundOnly',None)
     info['CFBundleURLTypes']=[{'CFBundleURLName':'Haituo Signal verification','CFBundleURLSchemes':['sgnl','signalcaptcha']}]

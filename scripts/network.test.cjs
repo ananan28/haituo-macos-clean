@@ -10,7 +10,7 @@ test('weak-network deadlines increase for long messages with bounded maximums',(
   assert.equal(translationTimeout('google-free','a'.repeat(30000)),45000);
 });
 test('translation transport uses the Chromium/system proxy stack',async()=>{
-  let calls=0;const ctx={p:{net:{fetch:async()=>{calls++;return 'ok'}}}};vm.createContext(ctx);
+  let calls=0;const ctx={p:{session:{fromPartition:partition=>{assert.equal(partition,'haituo-service-network');return{fetch:async()=>{calls++;return 'ok'}}}}}};vm.createContext(ctx);
   const start=code.indexOf('async function haituoTranslationFetch'),end=code.indexOf('\nasync function Yp',start);
   vm.runInContext(code.slice(start,end),ctx);assert.equal(await ctx.haituoTranslationFetch('https://fixture.test'),'ok');assert.equal(calls,1);
 });
@@ -63,7 +63,7 @@ test('market update shares in-flight work, caches for one minute, and uses 3 pri
   const ctx={Date,Promise,HaituoMarketTickerCache:{at:0,value:null},haituoLoadMarketDiskCache(){},haituoSaveMarketDiskCache(){},
     haituoMarketItem:price=>Number(price)>0?{price}:null,
     haituoMarketJson:async url=>{calls++;return url.includes('coingecko')?{bitcoin:{usd:100}}:{items:[{xauPrice:200}]}},
-    haituoGoogleFinanceTicker:async()=>{calls++;return{price:7}}};vm.createContext(ctx);
+    haituoFrankfurterUsdTicker:async()=>{calls++;return{price:7}}};vm.createContext(ctx);
   const a=code.indexOf('async function haituoFirstTicker('),b=code.indexOf('\nfunction tm()',a);vm.runInContext(code.slice(a,b),ctx);
   const results=await Promise.all([ctx.haituoGetMarketTicker(),ctx.haituoGetMarketTicker(),ctx.haituoGetMarketTicker()]);assert.equal(calls,3);assert.ok(results[0].btc);await ctx.haituoGetMarketTicker();assert.equal(calls,3);
 });

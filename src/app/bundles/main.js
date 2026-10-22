@@ -24712,7 +24712,11 @@ function haituoCompatibleEndpoint(value,defaultBase,path){
     return `${base}/${path}`;
 }
 const HaituoNetwork = require(`../js/haituo-network.js`);
-async function haituoTranslationFetch(url, init) { return p.net.fetch(url, init); }
+async function haituoTranslationFetch(url, init) {
+    // Main renderer intentionally intercepts HTTP(S). Keep that policy intact;
+    // trusted service calls use a separate memory-only session with OS proxy support.
+    return p.session.fromPartition(`haituo-service-network`).fetch(url, init);
+}
 async function Yp(e, t, n) {
     return HaituoNetwork.requestJSON(haituoTranslationFetch, e, t, n);
 }
@@ -25323,7 +25327,7 @@ async function haituoMarketJson(url, timeout = 7e3, init = {}) {
     const controller = new AbortController, timer = setTimeout(() => controller.abort(), timeout);
     let firstError;
     try {
-        const response = await p.net.fetch(url, {
+        const response = await haituoTranslationFetch(url, {
             method: init.method ?? `GET`,
             signal: controller.signal,
             headers: {
@@ -25348,7 +25352,7 @@ async function haituoMarketText(url, timeout = 7e3) {
     const controller = new AbortController, timer = setTimeout(() => controller.abort(), timeout);
     let firstError;
     try {
-        const response = await p.net.fetch(url, {
+        const response = await haituoTranslationFetch(url, {
             method: `GET`,
             signal: controller.signal,
             headers: {
@@ -25480,7 +25484,7 @@ async function haituoLoadMarketTicker() {
     })).catch(() => ({}));
     const [btcFallback, usdFallback, goldFallback] = await Promise.all([
         coinGecko.then(async data => data.btc || await haituoFirstTicker([ () => haituoBinanceVisionTicker(`BTCUSDT`) ])),
-        haituoFirstTicker([ () => haituoGoogleFinanceTicker(`USD-CNY`), () => haituoFrankfurterUsdTicker(), () => haituoOpenErUsdTicker(), () => haituoFxRatesUsdTicker(), () => haituoYahooTicker(`CNY=X`) ]),
+        haituoFirstTicker([ () => haituoFrankfurterUsdTicker(), () => haituoOpenErUsdTicker() ]),
         haituoFirstTicker([ async () => {
             const data = await haituoMarketJson(`https://data-asg.goldprice.org/dbXRates/USD`), item = data?.items?.[0];
             return haituoMarketItem(item?.xauPrice, item?.pcXau, data?.ts);

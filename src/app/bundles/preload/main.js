@@ -89987,7 +89987,7 @@ function haituoCachedSignalTranslation(text) {
         }({}), BI = function(e) {
             return e.WaitingForUuid = `WaitingForUuid`, e.WaitingForEnvelope = `WaitingForEnvelope`, 
             e.Done = `Done`, e;
-        }(BI || {}), lRt = 45 * t.Rn, uRt = 2, dRt = 6, fRt = new n.$t, pRt = [ 30 * t.Rn, 45 * t.Rn, 60 * t.Rn, 90 * t.Rn ], 
+        }(BI || {}), lRt = 45 * t.Rn, uRt = 2, dRt = 6, fRt = new n.$t, pRt = [ 30 * t.Rn, 45 * t.Rn, 60 * t.Rn, 90 * t.Rn ],
         mRt = class {
             #e=new Set;
             #t;

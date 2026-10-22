@@ -599,7 +599,7 @@ http://jedwatson.github.io/classnames
             },
             caishengOrderSelectedAccount() {u.ipcRenderer.send(`haituo:order-selected-account`)},
             caishengShortcutRecording(active) {return u.ipcRenderer.invoke('haituo:shortcut-recording',!!active)},
-            caishengStartScreenshot() {return u.ipcRenderer.invoke('haituo:start-screenshot')},
+            caishengStartScreenshot(mode) {return u.ipcRenderer.invoke('haituo:start-screenshot',mode)},
             caishengSettingsVisibility(open,owner='inline') {u.ipcRenderer.send('haituo:settings-visibility',!!open,owner)},
             caishengOnCloseSettings(callback) {const handler=()=>callback();u.ipcRenderer.on('haituo:close-settings',handler);return()=>u.ipcRenderer.removeListener('haituo:close-settings',handler)},
             caishengShowSettingsWindow() {
@@ -21497,6 +21497,7 @@ http://jedwatson.github.io/classnames
         return /^又是(?:一个|个)?/u.test(source) && (value = value.replace(/^It's\s+another\s+/iu, `Another `).replace(/^It is\s+another\s+/iu, `Another `)), value;
     }
     function haituoProviderConfigured(settings, provider) {
+        if(settings.translationPools)return true;
         if ([ `google-free`, `mymemory`, `auto`, `smart-retranslate` ].includes(provider)) return !0;
         if (provider === `google-cloud`) return !!settings.googleCloudApiKey?.trim?.();
         if (provider === `groq`) return !!settings.groqApiKey?.trim?.();
@@ -21508,26 +21509,58 @@ http://jedwatson.github.io/classnames
         return !!settings.apiKey?.trim?.();
     }
     function haituoGroupedSettings(F, props){
-        const groups={api:[],appearance:[],shortcuts:[]},rest=[];
+        const groups={api:[],appearance:[],shortcuts:[],voice:[]},rest=[];let advanced;
         const words=node=>{if(typeof node==='string')return node;if(Array.isArray(node))return node.map(words).join(' ');if(!node||typeof node!=='object')return '';return String(node.props?.['aria-label']||'')+' '+words(node.props?.children)};
         const list=Array.isArray(props.children)?props.children:[props.children];
         for(const node of list){
             if(!node){rest.push(node);continue}
-            if(node.props?.['data-haituo-advanced-settings']){rest.push(node);continue}
+            if(node.props?.['data-haituo-advanced-settings']){advanced=node;continue}
             const label=words(node);
-            if(/API|密钥|模型|接口|Endpoint|LibreTranslate 服务地址|微软翻译区域/i.test(label))groups.api.push(node);
+            if(/Groq.*API|Keppl.*API|Whisper|语音识别.*API/.test(label))groups.voice.push(node);
+            else if(node.type==='select'&&/输入.*翻译|聊天.*翻译/.test(label))continue;
+            else if(node.type==='select'&&/音转文|语音转文字服务/.test(label))rest.push(node);
+            else if(/API|密钥|模型|接口|Endpoint|LibreTranslate 服务地址|微软翻译区域/i.test(label))groups.api.push(node);
             else if(/快捷键/.test(label))groups.shortcuts.push(node);
             else if(/外观|字体|颜色|气泡|恢复默认颜色/.test(label))groups.appearance.push(node);
             else rest.push(node);
         }
-        const drawer=(name,title)=>groups[name].length?F.jsxs('details',{className:'HaituoSettingsGroup','data-haituo-settings-group':name,children:[F.jsx('summary',{children:title}),...groups[name]]},name):null;
-        return F.jsxs('div',{...props,children:[...rest,drawer('api','文字翻译与音转文 · API 接口配置'),drawer('shortcuts','其他快捷键'),drawer('appearance','聊天外观与颜色')]});
+        const drawer=(name,title,extra=[])=>groups[name].length||extra.length?F.jsxs('details',{className:'HaituoSettingsGroup','data-haituo-settings-group':name,children:[F.jsx('summary',{children:title}),...groups[name],...extra]},name):null;
+        let configured;
+        if(advanced){const children=[].concat(advanced.props.children||[]),shot=children.find(n=>n?.props?.['data-haituo-shot-drawer']);configured=F.jsxs('section',{...advanced.props,children:[haituoPoolControls(F,props.haituoConfig||{}),shot,drawer('voice','音转文与 Groq 接口配置')]})}
+        const {haituoConfig,...domProps}=props;return F.jsxs('div',{...domProps,children:[...rest,configured,drawer('shortcuts','其他快捷键'),drawer('appearance','聊天外观与颜色')]});
     }
 
-    function haituoShortcutRecorder(F,cfg){
-        const original=cfg.screenshotShortcut||'CommandOrControl+Alt+O';
+    let haituoPoolSaveQueue=Promise.resolve();
+    function haituoPoolControls(F,cfg,kind='text'){
+        const presets={
+          'google-free':{label:'Google 免密钥（非官方）',free:true,endpoint:'https://translate.googleapis.com/translate_a/single',model:''},
+          'google-cloud':{label:'Google Cloud 官方 API',endpoint:'https://translation.googleapis.com/language/translate/v2',model:''},
+          openai:{label:'OpenAI',endpoint:'https://api.openai.com/v1',model:kind==='image'?'gpt-4.1-mini':'gpt-4.1-mini'},
+          deepseek:{label:'DeepSeek',endpoint:'https://api.deepseek.com/v1',model:'deepseek-flash'},
+          groq:{label:'Groq',endpoint:'https://api.groq.com/openai/v1',model:'openai/gpt-oss-120b'},
+          qwen:{label:'Qwen（北京，可修改区域地址）',endpoint:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:kind==='image'?'qwen-vl-plus':'qwen-plus'},
+          glm:{label:'GLM / 智谱',endpoint:'https://open.bigmodel.cn/api/paas/v4',model:kind==='image'?'glm-4.6v':'glm-4.5'},
+          openrouter:{label:'OpenRouter',endpoint:'https://openrouter.ai/api/v1',model:kind==='image'?'openai/gpt-4.1-mini':'openrouter/auto'},
+          deepl:{label:'DeepL API',endpoint:'https://api-free.deepl.com/v2/translate',model:''},
+          mymemory:{label:'MyMemory 免费',free:true,endpoint:'https://api.mymemory.translated.net/get',model:''},
+          custom:{label:'自定义兼容接口',endpoint:'',model:''}
+        };
+        const options=Object.keys(presets).filter(p=>kind!=='image'||!['groq','deepl','mymemory'].includes(p));
+        const selected=cfg.chatTranslationProvider||'google-free';
+        const legacyPrimary={provider:presets[selected]?selected:'openai',apiKey:selected==='deepseek'?cfg.deepseekApiKey||'':selected==='google-cloud'?cfg.googleCloudApiKey||'':selected==='groq'?cfg.groqApiKey||'':selected==='deepl'?cfg.deepLApiKey||'':cfg.apiKey||'',endpoint:selected==='deepseek'?cfg.deepseekEndpoint||presets.deepseek.endpoint:cfg.endpoint||cfg.compatibleEndpoint||presets[selected]?.endpoint||'',model:selected==='deepseek'?cfg.deepseekModel||'deepseek-flash':cfg.model||cfg.openAIModel||presets[selected]?.model||''};
+        const pools=kind==='image'?{screenshots:Array.isArray(cfg.screenshotApiPool)?cfg.screenshotApiPool:[{provider:cfg.screenshotTranslationProvider==='google-free'?'google-free':cfg.screenshotTranslationProvider==='google-cloud'?'google-cloud':'openai',apiKey:cfg.screenshotTranslationProvider==='google-cloud'?cfg.googleCloudApiKey||'':cfg.screenshotApiKey||cfg.apiKey||'',endpoint:cfg.screenshotEndpoint||cfg.endpoint||presets.openai.endpoint,model:cfg.screenshotModel||'gpt-4.1-mini'}]}:cfg.translationPools||{primary:[legacyPrimary],backup:(cfg.openaiApiProfiles||[]).map(p=>({...p,provider:presets[p.service]?p.service:'custom'}))};
+        const save=operation=>{haituoPoolSaveQueue=haituoPoolSaveQueue.catch(()=>{}).then(async()=>{const latest=await window.SignalContext.caishengGetTranslationConfig();const current=kind==='image'?{screenshots:Array.isArray(latest.screenshotApiPool)?latest.screenshotApiPool:pools.screenshots}:latest.translationPools||pools;const changed=operation(current);return window.SignalContext.caishengSetTranslationConfig(kind==='image'?{screenshotApiPool:changed.screenshots}:{translationPools:changed,chatTranslationProvider:changed.primary[0]?.provider||'google-free',inputTranslationProvider:changed.primary[0]?.provider||'google-free'})}).catch(error=>alert(String(error.message||error)))};
+        const drawer=name=>{const rows=pools[name]||[],title=name==='primary'?'主翻译':name==='backup'?'备用翻译':'截图翻译接口';return F.jsxs('details',{'data-haituo-pool':name,...(name==='primary'?{'data-haituo-settings-group':'api'}:name==='backup'?{'data-haituo-api-drawer':'true'}:{'data-haituo-shot-api-drawer':'true'}),children:[F.jsx('summary',{children:title+'（'+rows.length+' 条）'}),F.jsx('small',{children:name==='backup'?'只在主池接口重试仍失败后临时调用，下一条新消息仍优先主池。':name==='primary'?'按顺序尝试，一条成功即停止；主池全部失败才调用备用池。':'可选择 Google 本地识字模式或支持图片的 AI；按顺序重试与切换。'}),...rows.map((entry,index)=>{
+         const preset=presets[entry.provider]||presets.custom,edit=delta=>save(current=>({...current,[name]:current[name].map((p,i)=>i===index?{...p,...delta}:p)}));
+         const field=(key,label,type='text')=>F.jsxs('label',{children:[F.jsx('span',{children:label}),F.jsx('input',{'aria-label':title+' '+label,'data-haituo-setting':name+'-'+index+'-'+key,type,defaultValue:entry[key]||'',onBlur:e=>{if(e.target.value!==(entry[key]||''))edit({[key]:e.target.value})}},name+'-'+index+'-'+key+'-'+(entry[key]||''))]});
+         return F.jsxs('fieldset',{children:[F.jsx('legend',{children:title+' '+(index+1)}),F.jsxs('label',{children:[F.jsx('span',{children:'翻译服务'}),F.jsxs('select',{'aria-label':title+'服务商',value:entry.provider,onChange:e=>{const provider=e.target.value;edit({provider,...presets[provider],apiKey:'',vision:kind==='image'})},children:options.map(provider=>F.jsx('option',{value:provider,children:presets[provider].label},provider))})]}),...(preset.free?[F.jsx('small',{children:'免密钥，无需填写 API；网络或服务限流时可能不可用。'})]:[field('apiKey','API 密钥','password'),field('endpoint','API 地址'),...(preset.model||entry.provider==='custom'?[field('model','模型')]:[])]),F.jsx('button',{type:'button',onClick:()=>save(current=>({...current,[name]:current[name].filter((_,i)=>i!==index)})),children:'删除此配置'})]},name+'-'+index)}),F.jsx('button',{type:'button',disabled:rows.length>=12,'data-haituo-add-pool':name,onClick:()=>save(current=>({...current,[name]:[...current[name],{provider:'openai',apiKey:'',...presets.openai,vision:kind==='image'}]})),children:'＋ 添加'+title+' API'})]})};
+        return kind==='image'?drawer('screenshots'):F.jsxs('section',{'data-haituo-chat-pools':'true',children:[F.jsx('strong',{children:'聊天翻译'}),drawer('primary'),drawer('backup')]});
+    }
+
+    function haituoShortcutRecorder(F,cfg,settingKey='screenshotShortcut',label='截图翻译快捷键',fallback='CommandOrControl+Alt+O'){
+        const original=cfg[settingKey]||fallback;
         const finish=async el=>{if(el.dataset.recording!=='true')return;el.dataset.recording='false';try{await window.SignalContext.caishengShortcutRecording(false)}catch{}if(!el.value)el.value=original};
-        return F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px',margin:'10px 0'},children:[F.jsx('span',{children:'截图翻译快捷键（点击后按组合键）'}),F.jsx('input',{'aria-label':'截图翻译快捷键','data-haituo-setting':'screenshotShortcut',readOnly:true,defaultValue:original,style:{width:'100%',boxSizing:'border-box',cursor:'pointer'},onFocus:async e=>{const el=e.currentTarget;try{await window.SignalContext.caishengShortcutRecording(true);if(!el.isConnected||document.activeElement!==el){await window.SignalContext.caishengShortcutRecording(false);return}el.dataset.recording='true';el.value='';el.placeholder='请按组合键，例如 Ctrl + Alt + O；Esc 取消'}catch(error){alert(String(error.message||error))}},onKeyDown:async e=>{e.preventDefault();e.stopPropagation();const el=e.currentTarget;if(el.dataset.recording!=='true')return;if(e.key==='Escape'){el.value=original;await finish(el);el.blur();return}if(['Control','Meta','Alt','Shift'].includes(e.key)||e.repeat)return;let key=e.key;if(key===' ')key='Space';else if(key==='+')key='Plus';else if(key==='-')key='Minus';else if(key.length===1)key=key.toUpperCase();else key=({ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Delete:'Delete',Backspace:'Backspace',Enter:'Return',Tab:'Tab'})[key]||key;const mods=[];if(e.metaKey)mods.push(window.SignalContext.OS?.platform==='darwin'?'Command':'Super');if(e.ctrlKey)mods.push('Control');if(e.altKey)mods.push('Alt');if(e.shiftKey)mods.push('Shift');if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&!/^F\d{1,2}$/.test(key)){el.placeholder='需要 Ctrl、Command、Alt 组合键，或 F1–F24';return}const accelerator=[...mods,key].join('+');try{await window.SignalContext.caishengSetTranslationConfig({screenshotShortcut:accelerator});el.value=accelerator;await finish(el);el.blur()}catch(error){el.value=original;await finish(el);el.blur();alert(String(error.message||error))}},onBlur:e=>{finish(e.currentTarget)}})]});
+        return F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px',margin:'10px 0'},children:[F.jsx('span',{children:label+'（点击后按组合键）'}),F.jsx('input',{'aria-label':label,'data-haituo-setting':settingKey,readOnly:true,defaultValue:original,style:{width:'100%',boxSizing:'border-box',cursor:'pointer'},onFocus:async e=>{const el=e.currentTarget;try{await window.SignalContext.caishengShortcutRecording(true);if(!el.isConnected||document.activeElement!==el){await window.SignalContext.caishengShortcutRecording(false);return}el.dataset.recording='true';el.value='';el.placeholder='请按组合键，例如 Ctrl + Alt + O；Esc 取消'}catch(error){alert(String(error.message||error))}},onKeyDown:async e=>{e.preventDefault();e.stopPropagation();const el=e.currentTarget;if(el.dataset.recording!=='true')return;if(e.key==='Escape'){el.value=original;await finish(el);el.blur();return}if(['Control','Meta','Alt','Shift'].includes(e.key)||e.repeat)return;let key=e.key;if(key===' ')key='Space';else if(key==='+')key='Plus';else if(key==='-')key='Minus';else if(key.length===1)key=key.toUpperCase();else key=({ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Delete:'Delete',Backspace:'Backspace',Enter:'Return',Tab:'Tab'})[key]||key;const mods=[];if(e.metaKey)mods.push(window.SignalContext.OS?.platform==='darwin'?'Command':'Super');if(e.ctrlKey)mods.push('Control');if(e.altKey)mods.push('Alt');if(e.shiftKey)mods.push('Shift');if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&!/^F\d{1,2}$/.test(key)){el.placeholder='需要 Ctrl、Command、Alt 组合键，或 F1–F24';return}const accelerator=[...mods,key].join('+');try{await window.SignalContext.caishengSetTranslationConfig({[settingKey]:accelerator});el.value=accelerator;await finish(el);el.blur()}catch(error){el.value=original;await finish(el);el.blur();alert(String(error.message||error))}},onBlur:e=>{finish(e.currentTarget)}})]});
     }
 
     let haituoProfileSaveQueue=Promise.resolve();
@@ -21539,7 +21572,7 @@ http://jedwatson.github.io/classnames
         const profiles=Array.isArray(cfg.openaiApiProfiles)?cfg.openaiApiProfiles:[];
         const presets={openai:{label:'OpenAI / 兼容接口',endpoint:'https://api.openai.com/v1'},deepseek:{label:'DeepSeek',endpoint:'https://api.deepseek.com/v1'},groq:{label:'Groq',endpoint:'https://api.groq.com/openai/v1'},qwen:{label:'Qwen / 通义千问',endpoint:''},glm:{label:'GLM / 智谱',endpoint:''},openrouter:{label:'OpenRouter',endpoint:''},custom:{label:'自定义 OpenAI 兼容接口',endpoint:''}};
         const rows=profiles.map((profile,index)=>F.jsxs('fieldset',{style:{margin:'10px 0',padding:'10px',border:'1px solid #666'},children:[F.jsx('legend',{children:'备用接口 '+(index+1)}),F.jsxs('label',{style:{display:'flex',flexDirection:'column',gap:'6px'},children:[F.jsx('span',{children:'服务商 / 接口类型'}),F.jsxs('select',{'aria-label':'备用服务商',value:profile.service||'custom',onChange:e=>editProfile(index,{service:e.target.value,endpoint:presets[e.target.value].endpoint||profile.endpoint||''}),children:Object.entries(presets).map(([value,p])=>F.jsx('option',{value,children:p.label},value))})]}),...['apiKey','endpoint','model'].map(field=>text('backup-'+index+'-'+field,{apiKey:'备用 API 密钥',endpoint:'备用 API 地址',model:'备用模型名称'}[field],'',field==='apiKey'?'password':'text',profile[field],value=>editProfile(index,{[field]:value}))),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:!!profile.vision,onChange:e=>editProfile(index,{vision:e.target.checked})}),F.jsx('span',{children:'支持图片，供截图翻译调度'})]}),F.jsx('button',{type:'button',onClick:()=>updateProfiles(rows=>rows.filter((_,i)=>i!==index)),children:'删除此接口'})]},index));
-        return F.jsxs('section',{'data-haituo-advanced-settings':'true',children:[F.jsxs('details',{'data-haituo-shot-drawer':'true',children:[F.jsx('summary',{children:'截图翻译与全局快捷键'}),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:cfg.screenshotEnabled!==false,onChange:e=>commit({screenshotEnabled:e.target.checked})}),F.jsx('span',{children:'启用全局截图翻译'})]}),haituoShortcutRecorder(F,cfg),F.jsxs('label',{children:[F.jsx('span',{children:'截图翻译方式（默认双语对照）'}),F.jsxs('select',{'aria-label':'截图翻译方式','data-haituo-setting':'screenshotTranslationProvider',value:cfg.screenshotTranslationProvider||'ai',onChange:e=>commit({screenshotTranslationProvider:e.target.value}),children:[F.jsx('option',{value:'ai',children:'AI 识图与翻译'}),F.jsx('option',{value:'google-free',children:'本地识字 + Google 免密钥翻译（非官方）'}),F.jsx('option',{value:'google-cloud',children:'本地识字 + Google Cloud 官方 API'})]})]}),F.jsx('small',{children:'在其他软件中也可用。修改字段后移开焦点即保存；Mac 首次使用需允许屏幕录制。'}),F.jsxs('details',{'data-haituo-shot-api-drawer':'true',children:[F.jsx('summary',{children:'截图识图接口（可沿用已配置接口）'}),text('screenshotEndpoint','截图 API 地址','留空沿用主接口'),text('screenshotApiKey','截图 API 密钥','留空沿用主接口','password'),text('screenshotModel','截图识图模型','必须支持图片输入')]}),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot().catch(error=>alert(String(error.message||error))),children:'立即截图翻译'})]}),F.jsxs('details',{'data-haituo-api-drawer':'true',children:[F.jsx('summary',{children:'备用 AI 接口与模型（已配置 '+profiles.filter(p=>p.apiKey).length+' 条）'}),F.jsx('small',{children:'支持多个服务商和自定义模型，每条独立填写地址、密钥及模型；截图备用需勾选支持图片。'}),...rows,F.jsx('button',{type:'button',disabled:profiles.length>=11,onClick:()=>updateProfiles(rows=>[...rows,{apiKey:'',endpoint:'',model:'',vision:false,service:'custom'}]),children:'＋ 添加备用 API / 模型'})]}),F.jsxs('details',{'data-haituo-google-drawer':'true',children:[F.jsx('summary',{children:'Google 翻译 · 免费与官方付费 API'}),F.jsx('small',{children:'免密钥模式无需配置，使用非官方接口，可能限流。官方 API 使用 Google Cloud 独立密钥，需启用 Cloud Translation API 与结算；额度及费用以 Google 为准。聊天、输入和截图可分别选择。截图的 Google 模式使用系统本地 OCR，仅上传识别文字；Windows 需安装对应 OCR 语言包。'}),text('googleCloudApiKey','Google Cloud 专用 API Key','Google Cloud Translation API Key','password'),F.jsx('small',{children:'官方地址固定为 translation.googleapis.com/language/translate/v2，无需填写模型。不会覆盖 OpenAI 等服务的密钥。'})]}),F.jsxs('details',{'data-haituo-deepseek-drawer':'true',children:[F.jsx('summary',{children:'DeepSeek 主接口专用配置（可选）'}),F.jsx('small',{children:'备用接口不限于 DeepSeek。仅当你选择 DeepSeek 作为翻译服务时，使用此独立主接口配置。'}),text('deepseekApiKey','DeepSeek API 密钥','','password'),text('deepseekEndpoint','DeepSeek API 地址','https://api.deepseek.com/v1'),text('deepseekModel','DeepSeek 模型','deepseek-flash'),text('deepseekApiKeys','额外 DeepSeek 密钥（一行一条）','','textarea')]})]});
+        return F.jsxs('section',{'data-haituo-advanced-settings':'true',children:[F.jsxs('details',{'data-haituo-shot-drawer':'true',children:[F.jsx('summary',{children:'截图翻译与全局快捷键'}),F.jsxs('label',{children:[F.jsx('input',{type:'checkbox',checked:cfg.screenshotEnabled!==false,onChange:e=>commit({screenshotEnabled:e.target.checked})}),F.jsx('span',{children:'启用全局截图翻译'})]}),haituoShortcutRecorder(F,cfg),haituoShortcutRecorder(F,cfg,'screenshotCopyShortcut','软件内截图快捷键','CommandOrControl+Alt+S'),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot('capture').catch(error=>alert(String(error.message||error))),children:'软件内截图（编辑后复制到剪贴板）'}),F.jsx('small',{children:'在其他软件中也可用。修改字段后移开焦点即保存；Mac 首次使用需允许屏幕录制。'}),haituoPoolControls(F,cfg,'image'),F.jsx('button',{type:'button',onClick:()=>window.SignalContext.caishengStartScreenshot().catch(error=>alert(String(error.message||error))),children:'立即截图翻译'})]})]});
     }
 
     function haituoProviderOptionLabel(settings, provider, label) {
@@ -209373,7 +209406,7 @@ function haituoCachedSignalTranslation(text) {
                     onClick: () => void haituoQuickTranslate(!0),
                     children: l ? `重译中…` : `AI重译`
                 }) ]
-            }), s ? haituoGroupedSettings(u6, {
+            }), s ? haituoGroupedSettings(u6, {haituoConfig:a,
                 className: `CaishengComposerTranslator__settings`,
                 children: [ (0, u6.jsxs)(`select`, {
                     "aria-label": `输入翻译服务`,
@@ -230516,17 +230549,10 @@ function haituoCachedSignalTranslation(text) {
                         type: `button`,
                         children: `新增 Telegram 账号`
                     }) ]
-                }) : null, u ? haituoGroupedSettings(O9, {
+                }) : null, u ? haituoGroupedSettings(O9, {haituoConfig:m,
                     className: `CaishengPlatformShell__settings`,
                     onClick: e => e.stopPropagation(),
-                    children: [ (0, O9.jsx)(`button`, {
-                        className: `HaituoSettingsCollapse`,
-                        type: `button`,
-                        title: `收纳到右侧`,
-                        "aria-label": `收纳到右侧`,
-                        onClick: () => (d(!1), requestAnimationFrame(() => A(o, 0, !haituoHome))),
-                        children: `›`
-                    }), (0, O9.jsxs)(`div`, {
+                    children: [ (0, O9.jsxs)(`div`, {
                         style: { padding: `9px 11px`, borderRadius: `8px`, background: `#1b160d`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `13px`, lineHeight: `1.45` },
                         children: [ (0, O9.jsx)(`strong`, { children: `基础翻译设置` }), (0, O9.jsx)(`div`, { children: `海拓 1.4.2` }) ]
                     }), (0, O9.jsxs)(`label`, {

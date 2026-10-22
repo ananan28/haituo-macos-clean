@@ -68,3 +68,7 @@
 .HaituoSettingsGroup>label{display:flex!important;flex-direction:column!important;gap:6px!important;margin:12px 0!important;min-width:0!important}
 .HaituoSettingsGroup :is(input:not([type=checkbox]),select,textarea){width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
 .HaituoSettingsGroup button{width:100%!important;min-height:40px!important;height:auto!important;white-space:nowrap!important;margin:10px 0!important;padding:10px!important;position:static!important}
+
+/* The brand name follows the theme; the optional badge keeps its own background. */
+.HaituoBrand strong{color:var(--haituo-fg,#202020)!important;-webkit-text-fill-color:var(--haituo-fg,#202020)!important;text-shadow:none!important}
+.HaituoSettingsCollapse{display:none!important}

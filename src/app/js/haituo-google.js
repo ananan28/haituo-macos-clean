@@ -14,3 +14,19 @@ async function translateGoogle(requestJSON,{text,target='zh-CN',provider='google
  return output.join('');
 }
 module.exports={translateGoogle,decode};
+
+// Preserve explicit source-to-translation correspondence; never pair by guessed line counts.
+async function translateGoogleBlocks(requestJSON,blocks,options={}){
+ const unique=[...new Set(blocks.map(b=>b.original).filter(Boolean))],translated=new Map();
+ if(options.provider==='google-cloud'){
+  if(!options.apiKey?.trim())throw Error('请配置 Google Cloud 专用 API Key');
+  for(let i=0;i<unique.length;i+=40){const q=unique.slice(i,i+40),data=await requestJSON('https://translation.googleapis.com/language/translate/v2',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':options.apiKey.trim()},body:JSON.stringify({q,target:options.target||'zh-CN',format:'text'})},options.timeout||45000),values=data?.data?.translations;
+   if(!Array.isArray(values)||values.length!==q.length||values.some(v=>!v.translatedText?.trim()))throw Error('Google 返回的文字块不完整，请重试');
+   q.forEach((text,n)=>translated.set(text,decode(values[n].translatedText)));
+  }
+ }else{
+  let next=0;await Promise.all(Array.from({length:Math.min(3,unique.length)},async()=>{while(next<unique.length){const text=unique[next++];translated.set(text,await translateGoogle(requestJSON,{...options,text}))}}));
+ }
+ return blocks.map(b=>({...b,translation:translated.get(b.original)}));
+}
+module.exports.translateGoogleBlocks=translateGoogleBlocks;

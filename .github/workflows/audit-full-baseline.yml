@@ -1,0 +1,90 @@
+name: Full 1.4.8 baseline functional audit
+on:
+  push:
+    branches: ['audit/1.4.8-full-baseline']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  full-audit:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos
+            artifact: Haituo-macos
+            destination: audit-download
+          - os: windows-2025
+            target: windows
+            artifact: Haituo-windows-unpacked
+            destination: windows/out/win-unpacked
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inventory all IPC entry points, syntax and public package advisories
+        run: python scripts/audit-full-inventory.py
+      - name: Existing regression suite
+        id: existing
+        continue-on-error: true
+        run: node --test scripts/translation-validation.test.cjs scripts/network.test.cjs scripts/screenshot.test.cjs scripts/key-recovery.test.cjs scripts/preload-completion.test.cjs scripts/web-loading-effect.test.cjs
+      - name: Independent functional boundary tests
+        id: expanded
+        continue-on-error: true
+        run: node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=audit-results/expanded-tests.xml scripts/audit-full-functional.test.cjs
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          run-id: 39851323702
+          github-token: ${{ github.token }}
+          path: ${{ matrix.destination }}
+      - name: Install original Mac artifact without rebuilding
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,subprocess,plistlib
+          dmg=next(pathlib.Path('audit-download').rglob('*.dmg'))
+          data=subprocess.run(['hdiutil','attach','-readonly','-nobrowse','-plist',str(dmg)],capture_output=True,check=True)
+          mount=next(pathlib.Path(e['mount-point']) for e in plistlib.loads(data.stdout)['system-entities'] if 'mount-point' in e)
+          app=next(mount.glob('*.app'));dest=pathlib.Path('macos/out/海拓-darwin-arm64/海拓.app');dest.parent.mkdir(parents=True,exist_ok=True)
+          subprocess.run(['ditto',str(app),str(dest)],check=True)
+          subprocess.run(['hdiutil','detach',str(mount)],check=True)
+          subprocess.run(['codesign','--verify','--deep','--strict',str(dest)],check=True)
+          PY
+      - name: Fresh normal launch, settings controls and restart persistence
+        id: native
+        continue-on-error: true
+        run: node scripts/audit-fresh-native.cjs
+      - name: Mac uninstall isolated fixtures only
+        if: matrix.target == 'macos'
+        id: macuninstall
+        continue-on-error: true
+        run: python scripts/test-uninstall-macos.py
+      - name: Windows uninstall isolated fixtures only
+        if: matrix.target == 'windows'
+        id: winuninstall
+        continue-on-error: true
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-uninstall.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Full-1.4.8-audit-${{ matrix.target }}
+          path: audit-results/**
+      - name: Audit gate (failed checks must remain visible)
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.expanded.outcome }}" != "success" ] || [ "${{ steps.native.outcome }}" != "success" ]; then
+            exit 1
+          fi

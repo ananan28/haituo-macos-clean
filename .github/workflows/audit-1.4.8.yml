@@ -1,0 +1,24 @@
+name: Haituo 1.4.8 isolated audit
+on:
+  push:
+    branches: ['audit/1.4.8-key-recovery']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Existing regression suite
+        run: node --test scripts/translation-validation.test.cjs scripts/network.test.cjs scripts/screenshot.test.cjs scripts/key-recovery.test.cjs scripts/preload-completion.test.cjs scripts/web-loading-effect.test.cjs
+      - name: Audit missing Windows recovery scenarios (mocked storage, no user data)
+        run: node --test scripts/audit-1.4.8.test.cjs

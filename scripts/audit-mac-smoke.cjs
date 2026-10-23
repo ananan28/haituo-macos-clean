@@ -10,6 +10,7 @@ async function attach(target){
  let n=0;const wait=new Map();
  ws.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.id){const p=wait.get(d.id);if(p){wait.delete(d.id);d.error?p.reject(Error(JSON.stringify(d.error))):p.resolve(d.result)}}else if(d.method==='Runtime.exceptionThrown')report.errors.push(d.params.exceptionDetails)});
  return {ws,call(method,params={}){return new Promise((resolve,reject)=>{const id=++n;const t=setTimeout(()=>{wait.delete(id);reject(Error('CDP timeout '+method))},10000);wait.set(id,{resolve:v=>{clearTimeout(t);resolve(v)},reject:e=>{clearTimeout(t);reject(e)}});ws.send(JSON.stringify({id,method,params}))})}};
+}
 const snapshot="(()=>({ready:document.readyState,url:location.href,shell:!!document.querySelector('.CaishengPlatformShell'),settings:!!document.querySelector('.CaishengPlatformShell__settings'),loading:!!document.querySelector('.app-loading-screen'),installed:!!document.querySelector('[class*=InstallScreen],.inbox'),text:document.body?.innerText?.slice(0,2000),buttons:[...document.querySelectorAll('button')].slice(0,25).map(e=>({text:e.innerText,cls:e.className}))}))()";
 let c;
 (async()=>{try{

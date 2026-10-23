@@ -18,6 +18,8 @@ let c;
  while(Date.now()<end){try{targets=await (await fetch('http://127.0.0.1:19341/json/list')).json();const t=targets.find(t=>t.type==='page'&&!t.url.startsWith('devtools:'));if(t){c=await attach(t);break}}catch{}await delay(500)}
  if(!c)throw Error('No debuggable application page');
  await c.call('Runtime.enable');
+ await new Promise((resolve,reject)=>require('node:child_process').execFile('/usr/bin/open',['-a',path.resolve('macos/out/海拓-darwin-arm64/海拓.app')],{timeout:10000},e=>e?reject(e):resolve()));
+ await c.call('Page.bringToFront');
  let state;
  while(Date.now()<end){const r=await c.call('Runtime.evaluate',{expression:snapshot,returnByValue:true});state=r.result?.value;report.states.push({at:Date.now(),...state});if(state?.shell&&!state.loading)break;await delay(2000)}
  const shot=await c.call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,'smoke.png'),Buffer.from(shot.data,'base64'));

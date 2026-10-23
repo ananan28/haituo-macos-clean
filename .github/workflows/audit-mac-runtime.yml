@@ -1,0 +1,57 @@
+name: Mac 1.4.8 actual artifact runtime audit
+on:
+  push:
+    branches: ['audit/1.4.8-mac-runtime']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  mac-runtime:
+    runs-on: macos-15
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [smoke, runtime, message, settings]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Haituo-macos
+          run-id: 39851323702
+          github-token: ${{ github.token }}
+          path: audit-download
+      - name: Install existing 1.4.8 artifact into isolated staging
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,subprocess,plistlib,shutil
+          dmg=next(pathlib.Path('audit-download').rglob('*.dmg'))
+          result=subprocess.run(['hdiutil','attach','-readonly','-nobrowse','-plist',str(dmg)],capture_output=True,check=True)
+          info=plistlib.loads(result.stdout)
+          mount=next(pathlib.Path(e['mount-point']) for e in info['system-entities'] if 'mount-point' in e)
+          source=next(mount.glob('*.app'))
+          dest=pathlib.Path('macos/out/海拓-darwin-arm64/海拓.app');dest.parent.mkdir(parents=True,exist_ok=True)
+          subprocess.run(['ditto',str(source),str(dest)],check=True)
+          subprocess.run(['hdiutil','detach',str(mount)],check=True)
+          subprocess.run(['codesign','--verify','--deep','--strict',str(dest)],check=True)
+          print('Runtime architecture:',subprocess.check_output(['uname','-m'],text=True))
+          print('Artifact executable:',subprocess.check_output(['file',str(dest/'Contents/MacOS/海拓')],text=True))
+          PY
+      - name: Run actual app with fresh test profile
+        shell: bash
+        run: |
+          if [ "${{ matrix.mode }}" = "smoke" ]; then
+            node scripts/audit-mac-smoke.cjs
+          else
+            python3 scripts/audit-mac-runtime.py "${{ matrix.mode }}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Mac-1.4.8-runtime-audit-${{ matrix.mode }}
+          path: macos/verification/**

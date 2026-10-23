@@ -9,7 +9,11 @@ with tempfile.TemporaryDirectory(prefix='haituo-win-audit-',ignore_cleanup_error
   proc=subprocess.Popen([str(app),'--user-data-dir='+profile],env=env,stdout=log,stderr=subprocess.STDOUT)
   try:
    deadline=time.monotonic()+200
-   while not report.exists() and proc.poll() is None and time.monotonic()<deadline:time.sleep(.5)
+   while proc.poll() is None and time.monotonic()<deadline:
+    if report.exists():
+     partial=json.loads(report.read_text(encoding='utf-8'))
+     if partial.get('ok') or partial.get('error'):break
+    time.sleep(.5)
    data=json.loads(report.read_text(encoding='utf-8')) if report.exists() else {'ok':False,'error':'No fixture report before deadline','exit':proc.poll()}
    print('WINDOWS_AUDIT_REPORT',json.dumps(data,ensure_ascii=False),flush=True)
    if not data.get('ok'):print(logpath.read_text(errors='replace')[-24000:],flush=True)

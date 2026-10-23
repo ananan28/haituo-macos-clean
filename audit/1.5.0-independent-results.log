@@ -1,0 +1,266 @@
+✖ SEC-POOL main redacts chat pool credentials (19.080269ms)
+✖ SEC-SCREEN main redacts screenshot pool credentials (1.0038ms)
+✖ SEC-RENDER renderer localStorage redactor covers nested pools (12.3932ms)
+✖ SAVE-KEYS ordinary redacted roundtrip preserves legacy multi-keys (1.195638ms)
+✖ SAVE-PROFILES equal endpoint/model distinct credentials retain identity (1.191692ms)
+✖ MIGRATE-GROQ pool legacy migration uses Groq endpoint (0.384549ms)
+✖ RETRY-JSON pool does not repeat deterministic bad JSON (0.905181ms)
+✖ ROUTE-CHAT normal explicit chat request still uses configured pool key (2.269013ms)
+✔ ROUTE-INPUT explicit input choice bypasses chat pool at IPC boundary (1.663732ms)
+✖ STARTUP synchronous retry allows app-ready callback to run (2754.884486ms)
+✔ TEXT chunk contract preserves emoji with object-returning splitter (1.665432ms)
+✖ WEBVIEW legitimate Electron webPreferences plain object attaches without exception (1.8767ms)
+✖ KEY-ENCRYPT valid Mac recovery key remains usable if encryption throws (1.56417ms)
+✖ KEY-AVAILABLE valid Mac recovery key remains usable if availability check throws (1.14445ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 2
+ℹ fail 12
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2970.315461
+
+✖ failing tests:
+
+test at ../../../tmp/haituo150-review.cjs:11:1
+✖ SEC-POOL main redacts chat pool credentials (19.080269ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!JSON.stringify(c.haituoRedactTranslationConfig({translationPools:{primary:[{apiKey:'FIXTURE-POOL-KEY'}],backup:[]}})).includes('FIXTURE-POOL-KEY'))
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:11:83)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:12:1
+✖ SEC-SCREEN main redacts screenshot pool credentials (1.0038ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!JSON.stringify(c.haituoRedactTranslationConfig({screenshotApiPool:[{apiKey:'FIXTURE-SCREEN-KEY'}]})).includes('FIXTURE-SCREEN-KEY'))
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:12:91)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:13:1
+✖ SEC-RENDER renderer localStorage redactor covers nested pools (12.3932ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!JSON.stringify(c.haituoRedactConfigSecrets({translationPools:{primary:[{apiKey:'FIXTURE-POOL-KEY'}]},screenshotApiPool:[{apiKey:'FIXTURE-SCREEN-KEY'}]})).includes('FIXTURE-'))
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:13:178)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:14:1
+✖ SAVE-KEYS ordinary redacted roundtrip preserves legacy multi-keys (1.195638ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:14:262)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:15:1
+✖ SAVE-PROFILES equal endpoint/model distinct credentials retain identity (1.191692ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'FIXTURE-A'
+  - 'FIXTURE-B'
+             ^
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:15:365)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'FIXTURE-A',
+    expected: 'FIXTURE-B',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:16:1
+✖ MIGRATE-GROQ pool legacy migration uses Groq endpoint (0.384549ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'https://api.openai.com/v1'
+  - 'https://api.groq.com/openai/v1'
+                 ^
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:16:227)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'https://api.openai.com/v1',
+    expected: 'https://api.groq.com/openai/v1',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:17:1
+✖ RETRY-JSON pool does not repeat deterministic bad JSON (0.905181ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:17:294)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:19:1
+✖ ROUTE-CHAT normal explicit chat request still uses configured pool key (2.269013ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'FIXTURE-POOL-KEY'
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:19:256)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'FIXTURE-POOL-KEY',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:21:1
+✖ STARTUP synchronous retry allows app-ready callback to run (2754.884486ms)
+  AssertionError [ERR_ASSERTION]: ready callback was blocked by synchronous retry
+  
+  false !== true
+  
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:21:429)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:23:1
+✖ WEBVIEW legitimate Electron webPreferences plain object attaches without exception (1.8767ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception.
+  Actual message: "t.on is not a function"
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:23:604)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: TypeError: t.on is not a function
+        at Object.will-attach-webview (evalmachine.<anonymous>:24:11)
+        at /tmp/haituo150-review.cjs:23:652
+        at getActual (node:assert:611:5)
+        at strict.doesNotThrow (node:assert:779:32)
+        at TestContext.<anonymous> (/tmp/haituo150-review.cjs:23:604)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1382:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+        at Test.postRun (node:internal/test_runner/test:1522:19)
+        at Test.run (node:internal/test_runner/test:1447:12),
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at ../../../tmp/haituo150-review.cjs:25:1
+✖ KEY-ENCRYPT valid Mac recovery key remains usable if encryption throws (1.56417ms)
+  Error: fixture keychain denied
+      at Object.encryptString (/tmp/haituo150-review.cjs:25:157)
+      at Object.Iv (evalmachine.<anonymous>:46:36)
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:25:229)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+
+test at ../../../tmp/haituo150-review.cjs:26:1
+✖ KEY-AVAILABLE valid Mac recovery key remains usable if availability check throws (1.14445ms)
+  Error: fixture keychain unavailable
+      at Object.isEncryptionAvailable (/tmp/haituo150-review.cjs:26:144)
+      at Object.Iv (evalmachine.<anonymous>:7:297)
+      at TestContext.<anonymous> (/tmp/haituo150-review.cjs:26:200)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)

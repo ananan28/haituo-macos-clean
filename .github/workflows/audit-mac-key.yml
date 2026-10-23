@@ -1,0 +1,16 @@
+name: Mac 1.4.8 keychain exception audit
+on:
+  push:
+    branches: ['audit/1.4.8-mac-key-errors']
+permissions:
+  contents: read
+jobs:
+  mac-key-errors:
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test scripts/audit-mac-key-errors.test.cjs

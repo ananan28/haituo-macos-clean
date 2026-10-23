@@ -1,0 +1,60 @@
+name: Audit 1.5.0 existing artifacts
+on:
+  push:
+    branches: ['audit/1.5.0-recheck']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos
+            artifact: Haituo-macos
+          - os: windows-2025
+            target: windows
+            artifact: Haituo-windows-unpacked
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 39893803176
+          name: ${{ matrix.artifact }}
+          path: downloaded
+      - name: Stage Windows existing product
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force windows/out/win-unpacked | Out-Null
+          $exe = Get-ChildItem downloaded -Recurse -Filter '海拓.exe' | Select-Object -First 1
+          if (!$exe) { throw 'Existing executable absent' }
+          Copy-Item -Recurse -Force ($exe.Directory.FullName + '/*') windows/out/win-unpacked/
+      - name: Stage macOS existing product
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          set -e
+          dmg="$(find downloaded -name '*.dmg' -print -quit)"
+          hdiutil attach "$dmg" -nobrowse -mountpoint "$RUNNER_TEMP/haituo-audit-mount"
+          mkdir -p macos/out/海拓-darwin-arm64
+          ditto "$RUNNER_TEMP/haituo-audit-mount/海拓.app" macos/out/海拓-darwin-arm64/海拓.app
+          hdiutil detach "$RUNNER_TEMP/haituo-audit-mount"
+          xattr -cr macos/out/海拓-darwin-arm64/海拓.app
+      - name: Source regression tests
+        run: node --test scripts/*.test.cjs
+      - name: Normal fresh launch and restart persistence
+        run: node scripts/audit-150-fresh-native.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-150-${{ matrix.target }}
+          path: audit-results/**

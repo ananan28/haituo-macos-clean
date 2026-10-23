@@ -25,6 +25,14 @@ try:
  req=urllib.request.Request('https://api.osv.dev/v1/querybatch',data=payload,headers={'Content-Type':'application/json'})
  with urllib.request.urlopen(req,timeout=60) as response:data=json.load(response)
  result['dependencyAudit']={'ok':True,'queried':len(queries),'matches':[{'package':name,'version':version,'ids':[v['id'] for v in r.get('vulns',[])]} for (name,version),r in zip(queries,data['results']) if r.get('vulns')]}
+ result['advisoryDetails']=[]
+ for entry in result['dependencyAudit']['matches']:
+  for identifier in entry['ids']:
+   try:
+    with urllib.request.urlopen('https://api.osv.dev/v1/vulns/'+identifier,timeout=15) as response:v=json.load(response)
+    result['advisoryDetails'].append({'package':entry['package'],'version':entry['version'],'id':identifier,'summary':v.get('summary'),'severity':v.get('severity'),'affected':v.get('affected'),'references':v.get('references')})
+   except Exception as e:result['advisoryDetails'].append({'id':identifier,'error':str(e)})
+
 except Exception as e:result['dependencyAudit']={'ok':False,'error':str(e)}
 (out/'source-inventory.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
 print('SOURCE_AUDIT_SUMMARY',json.dumps({'ipcCount':len(handlers),'syntax':syntax,'dependencyAudit':result['dependencyAudit']},ensure_ascii=False))

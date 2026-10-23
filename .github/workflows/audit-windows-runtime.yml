@@ -1,0 +1,31 @@
+name: Windows 1.4.8 actual artifact runtime audit
+on:
+  push:
+    branches: ['audit/1.4.8-windows-runtime']
+permissions:
+  contents: read
+  actions: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  windows-runtime:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [runtime, message, settings]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Haituo-windows-unpacked
+          run-id: 39851323702
+          github-token: ${{ github.token }}
+          path: windows/out/win-unpacked
+      - run: python scripts/audit-windows-runtime.py ${{ matrix.mode }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-1.4.8-runtime-audit-${{ matrix.mode }}
+          path: windows/verification/**

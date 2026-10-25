@@ -28444,11 +28444,16 @@ function haituoMacActivateAccountWindow() {
 }
 
 function e_() {
-    let e = !Z || Z.isDestroyed() || Z.isMinimized() || !Z.isVisible();
-    for (let [t, n] of Yg) e && n.connected ? (caishengLastWindowPayload.delete(t), caishengSendChild(n, {
-        type: `caisheng-window`,
-        visible: !1
-    })) : $g(t, n);
+    const hidden = !Z || Z.isDestroyed() || Z.isMinimized() || !Z.isVisible();
+    if (hidden) {
+        for (let [t, n] of Yg) n.connected && (caishengLastWindowPayload.delete(t), caishengSendChild(n, {
+            type: `caisheng-window`,
+            visible: !1
+        }));
+        return;
+    }
+    for (let [t, n] of Yg) Zg?.id === t && $g(t, n);
+    for (let [t, n] of Yg) Zg?.id !== t && $g(t, n);
 }
 
 function t_() {
@@ -28539,7 +28544,7 @@ function n_() {
         }
         if (!Qg.visible || !Qg.bounds) {
             Z.webContents.setBackgroundThrottling(true);
-            caishengStopNativeFollower(), Z.setAlwaysOnTop(!1), Z.setIgnoreMouseEvents(!0), Z.isVisible() && Z.hide();
+            Z.setAlwaysOnTop(!1), Z.setIgnoreMouseEvents(!0), Z.isVisible() && Z.hide();
             return;
         }
         Z.webContents.setBackgroundThrottling(false);

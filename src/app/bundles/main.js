@@ -29167,7 +29167,7 @@ async function nv() {
         X.info(`main window webContents did-finish-load`), x();
     }) : Z.once(`ready-to-show`, async () => {
         X.info(`main window is ready-to-show`), x();
-    }), await tv(Z, a.y() === a.v.Test ? G_([ $, `test`, `index.html` ]) : G_([ $, `background.html` ]));
+    }), process.env.HAITUO_INPROCESS !== `1` && await tv(Z, a.y() === a.v.Test ? G_([ $, `test`, `index.html` ]) : G_([ $, `background.html` ]));
 }
 
 const rv = `sb_publishable_hVl7mHSjPJYEuaMCrOjYbw_KG0Y4QjO`, iv = t.Qa({
@@ -29693,8 +29693,18 @@ p.ipcMain.handle(`caisheng:launch-signal-profile`, (haituoLaunchSignalProfile = 
     let r = (0, c.spawn)(process.execPath, [ `--caisheng-profile=${t}` ], {
         detached: !1,
         stdio: (process.env.HAITUO_WINDOW_TEST === `1` || process.env.HAITUO_VERIFY_RUNTIME === `1` || process.env.HAITUO_SETTINGS_TEST === `1`) ? [ `ignore`, `inherit`, `inherit`, `ipc` ] : [ `ignore`, `ignore`, `ignore`, `ipc` ],
-        windowsHide: !1
+        windowsHide: !1,
+        env: process.env.HAITUO_INPROCESS === `1` ? { ...process.env, HAITUO_INPROCESS: `1` } : process.env
     });
+    process.env.HAITUO_INPROCESS === `1` && (() => {
+        try {
+            const view = new p.WebContentsView({ webPreferences: { ...v_, nodeIntegration: !1, nodeIntegrationInWorker: !1, sandbox: !1, contextIsolation: !0, webviewTag: !0, preload: (0, s.join)($, `bundles`, `preload`, `wrapper.js`), additionalArguments: [ `--caisheng-inprocess`, `--caisheng-renderer-profile=${t}` ], spellcheck: !1 } });
+            globalThis.caishengBridge?.register?.(t, view);
+            Z?.contentView?.addChildView(view);
+            const b = Z?.getContentBounds(); b && view.setBounds({ x: 0, y: 0, width: b.width, height: b.height });
+            view.webContents.loadURL(G_([ $, `background.html` ]));
+        } catch (error) { X.warn(`inprocess child view failed: ${error?.message ?? error}`); }
+    })();
     return Yg.set(t, r), r.on(`error`, error => {
         X.error(`Haituo Signal profile failed to start (${t}): ${error?.message ?? error}`), Yg.get(t) === r && (Yg.delete(t), Xg.delete(t), caishengLastWindowPayload.delete(t));
     }), r.on(`message`, e => {

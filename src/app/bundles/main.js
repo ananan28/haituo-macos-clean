@@ -28454,6 +28454,7 @@ function e_() {
     }
     for (let [t, n] of Yg) Zg?.id === t && $g(t, n);
     for (let [t, n] of Yg) Zg?.id !== t && $g(t, n);
+    globalThis.caishengBridge?.syncVisibility?.(Zg?.id);
 }
 
 function t_() {
@@ -29682,6 +29683,11 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`新�
         const link = globalThis.caishengBridge.childFor(event);
         link && link.child?.connected && caishengSendChild(link.child, { type: `haituo-bridge-invoke`, channel: payload?.channel, args: payload?.args || [], requestId: `send-${++seq}` });
     });
+    p.ipcMain.on(`get-user-data-path`, event => {
+        const link = globalThis.caishengBridge.childFor(event);
+        link && (event.returnValue = (0, s.join)(p.app.getPath(`appData`), `Haituo`, `SignalProfiles`, link.id));
+    });
+    globalThis.caishengBridge.syncVisibility = selected => { for (const [id, view] of views) view.setVisible(id === selected); };
 })();
 p.ipcMain.handle(`caisheng:launch-signal-profile`, (haituoLaunchSignalProfile = async (e, t) => {
     if (typeof t != `string` || !/^signal-[a-zA-Z0-9_-]{1,64}$/u.test(t)) throw Error(`Signal 账号标识无效`);

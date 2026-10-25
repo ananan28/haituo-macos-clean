@@ -29658,7 +29658,32 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`新�
     { value: `upload`, label: `上传图标` },
     { value: `open`, label: `打开账号` },
     { value: `delete`, label: `删除账号` }
-])), p.ipcMain.handle(`caisheng:launch-signal-profile`, (haituoLaunchSignalProfile = async (e, t) => {
+])), process.env.HAITUO_INPROCESS === `1` && $u === `signal-main` && (() => {
+    const views = new Map, sender = new Map, pending = new Map;
+    let seq = 0;
+    globalThis.caishengBridge = {
+        childFor(event) { const id = sender.get(event?.sender?.id); return id && Yg.has(id) ? { id, child: Yg.get(id) } : null; },
+        push(workspaceId, channel, args) { views.get(workspaceId)?.webContents?.send(`haituo-child-push:${channel}`, { args: args || [] }); },
+        resolve(requestId, result) { const p = pending.get(requestId); p && (pending.delete(requestId), clearTimeout(p.timer), p.resolve(result)); },
+        reject(requestId, error) { const p = pending.get(requestId); p && (pending.delete(requestId), clearTimeout(p.timer), p.reject(new Error(error))); },
+        register(workspaceId, view) { views.set(workspaceId, view); sender.set(view.webContents.id, workspaceId); }
+    };
+    p.ipcMain.handle(`haituo-child-invoke`, (event, payload) => {
+        const link = globalThis.caishengBridge.childFor(event);
+        if (!link || !link.child?.connected) throw new Error(`inprocess bridge: no child`);
+        const requestId = `ipc-${++seq}`;
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`inprocess bridge timeout: ${payload?.channel}`)); }, 60000);
+            pending.set(requestId, { resolve, reject, timer });
+            caishengSendChild(link.child, { type: `haituo-bridge-invoke`, channel: payload?.channel, args: payload?.args || [], requestId });
+        });
+    });
+    p.ipcMain.on(`haituo-child-send`, (event, payload) => {
+        const link = globalThis.caishengBridge.childFor(event);
+        link && link.child?.connected && caishengSendChild(link.child, { type: `haituo-bridge-invoke`, channel: payload?.channel, args: payload?.args || [], requestId: `send-${++seq}` });
+    });
+})();
+p.ipcMain.handle(`caisheng:launch-signal-profile`, (haituoLaunchSignalProfile = async (e, t) => {
     if (typeof t != `string` || !/^signal-[a-zA-Z0-9_-]{1,64}$/u.test(t)) throw Error(`Signal 账号标识无效`);
     let n = Yg.get(t);
     if (n && n.exitCode === null && !n.killed && n.connected) return caishengKeepMainShellVisible(), {
@@ -29673,6 +29698,8 @@ p.ipcMain.handle(`caisheng:show-add-menu`, async () => caishengShowTopMenu(`新�
     return Yg.set(t, r), r.on(`error`, error => {
         X.error(`Haituo Signal profile failed to start (${t}): ${error?.message ?? error}`), Yg.get(t) === r && (Yg.delete(t), Xg.delete(t), caishengLastWindowPayload.delete(t));
     }), r.on(`message`, e => {
+        if (process.env.HAITUO_INPROCESS === `1` && Yg.get(t) === r && e?.type === `haituo-bridge-result`) { (e.ok ? globalThis.caishengBridge?.resolve : globalThis.caishengBridge?.reject)?.(e.requestId, e.ok ? e.result : e.error); return; }
+        if (process.env.HAITUO_INPROCESS === `1` && Yg.get(t) === r && e?.type === `haituo-bridge-push`) { globalThis.caishengBridge?.push?.(t, e.channel, e.args || []); return; }
         if (Yg.get(t) === r && e?.type === `haituo-captcha-pending`) { haituoPendingCaptchaAccounts.set(t,e.seq); return; }
         if(Yg.get(t)===r&&e?.type===`haituo-account-focus`){
             const newlyFocused = e.focused && !caishengFocusedSignals.has(t);

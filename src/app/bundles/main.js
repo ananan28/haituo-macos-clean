@@ -29168,7 +29168,7 @@ async function nv() {
         X.info(`main window webContents did-finish-load`), x();
     }) : Z.once(`ready-to-show`, async () => {
         X.info(`main window is ready-to-show`), x();
-    }), process.env.HAITUO_INPROCESS !== `1` && await tv(Z, a.y() === a.v.Test ? G_([ $, `test`, `index.html` ]) : G_([ $, `background.html` ]));
+    }), (process.env.HAITUO_INPROCESS !== `1` || $u === `signal-main`) && await tv(Z, a.y() === a.v.Test ? G_([ $, `test`, `index.html` ]) : G_([ $, `background.html` ]));
 }
 
 const rv = `sb_publishable_hVl7mHSjPJYEuaMCrOjYbw_KG0Y4QjO`, iv = t.Qa({

@@ -28566,6 +28566,12 @@ function caishengSoftRefreshWindow() {
 let caishengParentHeartbeat = Date.now(), caishengOrphanExitStarted = !1;
 $u !== `signal-main` && (process.on(`message`, e => {
     if (!e || typeof e != `object`) return;
+    if (process.env.HAITUO_INPROCESS === `1` && e.type === `haituo-bridge-invoke`) {
+        const send = payload => { try { process.send?.(payload); } catch {} }, handler = p.ipcMain._invokeHandlers?.get(e.channel), fake = () => ({ sender: Z?.webContents, senderFrame: null, reply() {} });
+        if (handler) Promise.resolve().then(() => handler(fake(), ...(e.args || []))).then(result => send({ type: `haituo-bridge-result`, requestId: e.requestId, ok: !0, result })).catch(error => send({ type: `haituo-bridge-result`, requestId: e.requestId, ok: !1, error: String(error?.message ?? error) }));
+        else try { for (const l of p.ipcMain.listeners(e.channel)) l(fake(), ...(e.args || [])); send({ type: `haituo-bridge-result`, requestId: e.requestId, ok: !0 }); } catch (error) { send({ type: `haituo-bridge-result`, requestId: e.requestId, ok: !1, error: String(error?.message ?? error) }); }
+        return;
+    }
     if(e.type==='haituo-close-settings-view'){Z?.webContents?.send('haituo:close-settings');return}
     if (e.type === `haituo-captcha-response` && typeof e.token === `string` && e.token.length > 0 && e.token.length < 32768) { p_.handleCaptcha(e.token); return; }
     if (e.type === `caisheng-edit-account-label-in-page`) {
@@ -28918,7 +28924,11 @@ async function nv() {
     X.info(`Initializing BrowserWindow config:`, g), $u === `signal-main` && (g.resizable = !0, g.maximizable = !0), 
     process.platform === `darwin` && p.app.setActivationPolicy($u === `signal-main` ? `regular` : `accessory`),
     g.acceptFirstMouse = process.platform === `darwin`,
-    Z = new p.BrowserWindow(g), (process.platform===`darwin`&&$u!==`signal-main`&&Z.setWindowButtonVisibility(false)), p.Menu.setApplicationMenu(null), Z.removeMenu(), Z.setAutoHideMenuBar(!0), 
+    Z = new p.BrowserWindow(g), (process.platform===`darwin`&&$u!==`signal-main`&&Z.setWindowButtonVisibility(false)), p.Menu.setApplicationMenu(null), Z.removeMenu(), Z.setAutoHideMenuBar(!0), (process.env.HAITUO_INPROCESS === `1` && $u !== `signal-main` && (() => {
+        const caishengBridgeRelay = (channel, ...args) => { try { process.send?.({ type: `haituo-bridge-push`, channel, args }); } catch {} };
+        const caishengNativeSend = Z.webContents.send.bind(Z.webContents);
+        Z.webContents.send = (channel, ...args) => { caishengBridgeRelay(channel, ...args); return caishengNativeSend(channel, ...args); };
+    })()), 
     (()=>{if(process.platform===`darwin`&&$u!==`signal-main`){
         Z.on(`focus`,()=>process.send?.({type:`haituo-account-focus`,focused:true}));
         Z.on(`blur`,()=>process.send?.({type:`haituo-account-focus`,focused:false}));

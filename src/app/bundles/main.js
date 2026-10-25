@@ -28499,28 +28499,6 @@ function caishengStartNativeFollower(parentHandle, bounds, parentContentBounds) 
     }
 }
 
-function caishengStartNativeDock(parentHandle, bounds, parentContentBounds) {
-    if (process.platform !== `win32` || !Z || typeof parentHandle != `string` || !/^\d{1,20}$/u.test(parentHandle) || !bounds || !parentContentBounds) return !1;
-    const numbers = [ bounds.x, bounds.y, bounds.width, bounds.height, parentContentBounds.x, parentContentBounds.y, parentContentBounds.width, parentContentBounds.height ].map(Number);
-    if (!numbers.every(Number.isFinite)) return !1;
-    try {
-        const handle = Z.getNativeWindowHandle(), childHandle = (handle.length >= 8 ? handle.readBigUInt64LE() : BigInt(handle.readUInt32LE())).toString(), displayScale = (() => { try { const d = p.screen.getDisplayMatching(parentContentBounds); return d && Number.isFinite(d.scaleFactor) && d.scaleFactor > 0 ? d.scaleFactor : 1; } catch { return 1; } })(), left = Math.round((bounds.x - parentContentBounds.x) * displayScale), top = Math.round((bounds.y - parentContentBounds.y) * displayScale), right = Math.round((parentContentBounds.x + parentContentBounds.width - (bounds.x + bounds.width)) * displayScale), bottom = Math.round((parentContentBounds.y + parentContentBounds.height - (bounds.y + bounds.height)) * displayScale), signature = `${parentHandle}:${childHandle}:${left}:${top}:${right}:${bottom}`;
-        if (!/^\d{1,20}$/u.test(childHandle)) return !1;
-        if (signature === caishengNativeFollowerSignature && caishengNativeFollower && !caishengNativeFollower.killed) return !0;
-        caishengStopNativeFollower(), caishengNativeFollowerSignature = signature;
-        const follower = (0, c.spawn)((0, s.join)(process.resourcesPath, `app.asar.unpacked`, `native`, `HaituoWindowHelper.exe`), [ `dock`, childHandle, parentHandle, String(left), String(top), String(right), String(bottom) ], { windowsHide: !0, stdio: `ignore` });
-        caishengNativeFollower = follower, follower.on(`error`, error => {
-            X.warn(`Haituo native window dock unavailable: ${error?.message ?? error}`), caishengNativeFollower === follower && (caishengNativeFollower = void 0, caishengNativeFollowerSignature = ``);
-        }), follower.unref(), follower.once(`exit`, () => {
-            caishengNativeFollower === follower && (caishengNativeFollower = void 0, caishengNativeFollowerSignature = ``);
-        });
-        return !0;
-    } catch {
-        caishengStopNativeFollower();
-        return !1;
-    }
-}
-
 function caishengAttachNativeOwner(e) {
     if (process.platform !== `win32` || !Z || typeof e != `string` || !/^\d{1,20}$/u.test(e) || caishengNativeOwner === e) return;
     try {
@@ -28549,16 +28527,11 @@ function n_() {
         }
         Z.webContents.setBackgroundThrottling(false);
         Z.isFullScreen() && Z.setFullScreen(!1), Z.isMaximized() && Z.unmaximize(), Z.isMinimized() && Z.restore();
-        const nativeDockActive = caishengStartNativeDock(Qg.parentHandle, Qg.bounds, Qg.parentContentBounds);
-        if (nativeDockActive) {
-            Z.setMovable(!1), Z.setResizable(!1), Z.setMaximizable(!1), Z.setFullScreenable(!1), Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();
-        } else {
-            const current = Z.getBounds(), desired = Qg.bounds, changed = Math.abs(current.x - desired.x) > 1 || Math.abs(current.y - desired.y) > 1 || Math.abs(current.width - desired.width) > 1 || Math.abs(current.height - desired.height) > 1;
-            changed && Z.setBounds(desired, !1);
-            const nativeFollowerActive = caishengStartNativeFollower(Qg.parentHandle, Qg.bounds, Qg.parentContentBounds);
-            nativeFollowerActive || !changed || Z.setBounds(desired, !1), Z.setMovable(!1), Z.setResizable(!1), Z.setMaximizable(!1), Z.setFullScreenable(!1), Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();
-            if(Qg?.parentSourceId)try{Z.moveAbove(Qg.parentSourceId)}catch{}
-        }
+        const current = Z.getBounds(), desired = Qg.bounds, changed = Math.abs(current.x - desired.x) > 1 || Math.abs(current.y - desired.y) > 1 || Math.abs(current.width - desired.width) > 1 || Math.abs(current.height - desired.height) > 1;
+        changed && Z.setBounds(desired, !1);
+        const nativeFollowerActive = caishengStartNativeFollower(Qg.parentHandle, Qg.bounds, Qg.parentContentBounds);
+        nativeFollowerActive || !changed || Z.setBounds(desired, !1), Z.setMovable(!1), Z.setResizable(!1), Z.setMaximizable(!1), Z.setFullScreenable(!1), Z.setIgnoreMouseEvents(!1), Z.isAlwaysOnTop() && Z.setAlwaysOnTop(!1), Z.isVisible() || Z.showInactive();
+        if(Qg?.parentSourceId)try{Z.moveAbove(Qg.parentSourceId)}catch{}
     }
 }
 

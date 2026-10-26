@@ -1619,6 +1619,9 @@ function haituoInstallMessageScanner() {
     const messageContainer=()=>document.querySelector('#main [data-testid="conversation-panel-messages"]')||document.querySelector('#main');
     const conversationScope=()=>{const root=document.querySelector('#main'),header=root?.querySelector('header,[data-testid="conversation-header"]');return String(header?.querySelector('[title]')?.getAttribute('title')||header?.innerText||header?.textContent||'current-conversation').trim()};
     const sessionKey=(text,target)=>JSON.stringify([accountScope,conversationScope(),target,String(text).normalize('NFKC').replace(/\s+/gu,' ').trim()]);
+    // Identity index survives empty/recycled row DOM; values never hold DOM nodes.
+    const sessionMessages=new Map;
+    const sessionMessageKey=id=>JSON.stringify([accountScope,conversationScope(),String(id||'')]);
     // Resident cache is disabled; use the ordinary 1.6.4 message observer.
     installWhatsAppNotificationBridge(), installWhatsAppUnreadObserver();
     refreshSettings().then(() => {
@@ -1636,7 +1639,7 @@ function haituoInstallMessageScanner() {
             : [...(messageContainer()?.querySelectorAll('[data-id]')||[])]);
         const visibleMessages = [ ...new Set(messageCandidates) ].filter(e => {
             const t = e.getBoundingClientRect();
-            return e.isConnected && (isTelegram()||messageContainer()?.contains(e)) && t.width > 0 && t.height > 0 && t.bottom > 72 && t.top < innerHeight - 86;
+            return e.isConnected && (isTelegram()||messageContainer()?.contains(e)) && t.width > 0 && (t.height > 0 || (isWhatsApp()&&sessionMessages.has(sessionMessageKey(haituoWebMessageId(e))))) && t.bottom > 72 && t.top < innerHeight - 86;
         });
         // WhatsApp must repair every visible row, including virtual-list replicas.
         // Keep the pre-existing Telegram bound unchanged.
@@ -1708,17 +1711,25 @@ function haituoInstallMessageScanner() {
             const candidates = [ ...e.querySelectorAll(textRootSelector) ]
                 .filter(node => node instanceof HTMLElement && !isQuoted(node) && !node.closest(".haituo-wa-message-translation,.haituo-voice-result,.haituo-wa-translation-error"));
             const roots = candidates.filter(node => !candidates.some(parent => parent !== node && parent.contains(node)));
-            const n = roots.map(node => {
-                if (!node.querySelector(quoteSelector)) return node.innerText?.trim() || "";
+            let n = roots.map(node => {
+                if (!node.querySelector(quoteSelector)) return node.innerText?.trim() || (isWhatsApp()?node.textContent?.trim():"") || "";
                 const copy=node.cloneNode(true);copy.querySelectorAll(quoteSelector).forEach(quote=>quote.remove());
                 return copy.textContent?.trim() || "";
             }).filter(Boolean).join("\n\n").trim();
+            const messageId = haituoWebMessageId(e), messageKey=sessionMessageKey(messageId);
+            const known=isWhatsApp()&&messageId?sessionMessages.get(messageKey):null;
+            const emptyReplay=!n&&known&&known.target===haituoMessageTarget(known.source)&&sessionTranslations.has(known.memoKey);
+            if(emptyReplay)n=known.source;
             if (!n || /^\d{1,2}:\d{2}$/.test(n) || /^https?:\/\/\S+$/iu.test(n)) continue;
-            const messageId = haituoWebMessageId(e);
+            const target=haituoMessageTarget(n);
+            // A real non-empty edit advances the ID pointer; an empty DOM never does.
+            if(isWhatsApp()&&messageId&&!emptyReplay)sessionMessages.set(messageKey,{source:n,target,memoKey:sessionKey(n,target)});
             if(haituoLocalBilingualView && haituoLocalChatConversation(messageId)) localRecords.push({id:messageId,source:n,metadata:e.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || ``});
             if (!webTranslationActive()) continue;
             if (e.dataset.haituoTranslationSource !== n || e.dataset.haituoTranslationMessageId !== (messageId || "") || e.dataset.haituoTranslationTarget !== haituoMessageTarget(n) || e.dataset.haituoTranslationConversation !== conversationScope()) {
-                e.querySelectorAll(".haituo-wa-message-translation").forEach(node => node.remove());
+                e.querySelectorAll(".haituo-wa-message-translation").forEach(node => {
+                    if(!emptyReplay||node.dataset.haituoMessageKey!==messageKey||node.dataset.haituoTarget!==target)node.remove();
+                });
                 e.dataset.haituoTranslationSource = n;
                 e.dataset.haituoTranslationMessageId = messageId || "";
                 e.dataset.haituoTranslationTarget = haituoMessageTarget(n);
@@ -1728,7 +1739,7 @@ function haituoInstallMessageScanner() {
                 delete e.dataset.haituoAttachmentMiss;
                 delete e.dataset.haituoTranslationDone;
             }
-            const mount = haituoWhatsAppTranslationMount(e, roots);
+            const mount = haituoWhatsAppTranslationMount(e, roots) || (emptyReplay?e:null);
             if (e.dataset.haituoTranslationDone === "1" && (haituoLocalBilingualView?.isActive() || e.querySelector(".haituo-wa-message-translation"))) continue;
             const memoKey=sessionKey(n,haituoMessageTarget(n));
             const memoHit=isWhatsApp()&&sessionTranslations.has(memoKey);
@@ -1742,7 +1753,7 @@ function haituoInstallMessageScanner() {
                 continue;
             }
             if (!incomingTranslationOn() && !messageId) { delete e.dataset.haituoTranslationPending; continue; }
-            translationTargets.push({ e, t: e, n, mount, messageId, target:haituoMessageTarget(n), memoKey:sessionKey(n,haituoMessageTarget(n)),conversation:conversationScope(), attachmentOnly: !incomingTranslationOn() });
+            translationTargets.push({ e, t: e, n, mount, messageId, messageKey, target:haituoMessageTarget(n), memoKey:sessionKey(n,haituoMessageTarget(n)),conversation:conversationScope(), attachmentOnly: !incomingTranslationOn() });
         }
         if(haituoLocalBilingualView && localRecords.length) await haituoLocalBilingualView.observe(localRecords,visibleMessages);
         const applyTranslation = item => {
@@ -1767,6 +1778,7 @@ function haituoInstallMessageScanner() {
             }
             if (!t || !r || !e.isConnected || !t.isConnected || !mount?.isConnected || !e.contains(mount) || e.dataset.haituoTranslationSource !== n || e.querySelector(".haituo-wa-message-translation")) return;
             const o = document.createElement("div");
+            if(isWhatsApp()){o.dataset.haituoMessageKey=item.messageKey;o.dataset.haituoTarget=item.target;}
             o.className = "haituo-wa-message-translation", Object.assign(o.style, {
                 display: "block",
                 position: "static",

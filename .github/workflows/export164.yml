@@ -1,0 +1,77 @@
+name: Export verified Haituo 1.6.4 Mac files
+on:
+  push:
+    branches: ['export/1.6.4-artifacts']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Haituo-1.6.4-macos
+          run-id: 40253631970
+          github-token: ${{ github.token }}
+          path: export/input
+      - name: Split unchanged verified installer and preserve source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,shutil,zipfile
+          root=Path('export/input')
+          dmg=list(root.rglob('*.dmg'));src=list(root.rglob('*macOS-Source.zip'))
+          assert len(dmg)==len(src)==1
+          with zipfile.ZipFile(src[0]) as z:
+            p=z.namelist()[0].split('/')[0]+'/'
+            snapshot=json.loads(z.read(p+'SOURCE-SNAPSHOT.json'))
+            assert snapshot['version']=='1.6.4' and snapshot['platform']=='macos' and snapshot['commit']=='42e7aac6074979f5e654880efbc993799944c8f2'
+          out=Path('export/output');out.mkdir(parents=True)
+          manifest={'version':'1.6.4','sourceCommit':snapshot['commit'],'originalArtifact':12621003984,'files':{},'parts':[]}
+          with dmg[0].open('rb') as f:manifest['files']['dmg']={'bytes':dmg[0].stat().st_size,'sha256':hashlib.file_digest(f,'sha256').hexdigest()}
+          with dmg[0].open('rb') as f:
+            index=0
+            while data:=f.read(64*1024*1024):
+              name=f'mac-part-{index:02d}.bin';(out/name).write_bytes(data)
+              manifest['parts'].append({'name':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              index+=1
+          assert len(manifest['parts'])==5
+          shutil.copyfile(src[0],out/'Haituo-1.6.4-macOS-Source.zip')
+          with src[0].open('rb') as f:manifest['files']['source']={'bytes':src[0].stat().st_size,'sha256':hashlib.file_digest(f,'sha256').hexdigest()}
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
+          print(json.dumps(manifest))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-part00
+          path: export/output/mac-part-00.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-part01
+          path: export/output/mac-part-01.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-part02
+          path: export/output/mac-part-02.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-part03
+          path: export/output/mac-part-03.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-part04
+          path: export/output/mac-part-04.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo164-mac-source-manifest
+          path: |
+            export/output/Haituo-1.6.4-macOS-Source.zip
+            export/output/manifest.json

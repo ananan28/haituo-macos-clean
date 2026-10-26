@@ -1,0 +1,75 @@
+name: Export existing verified 1.6.5 Mac installer - no rebuild
+on:
+  push:
+    branches: ['export/1.6.5-attachments']
+permissions:
+  actions: read
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Haituo-1.6.5-diagnostic-macos
+          run-id: 40266622558
+          github-token: ${{ github.token }}
+          path: original
+      - name: Verify snapshot and split unchanged installer for transport
+        shell: python
+        run: |
+          from pathlib import Path
+          import zipfile,json,hashlib
+          root=Path('original')
+          sources=list(root.rglob('*macOS-Source.zip'))
+          assert len(sources)==1
+          with zipfile.ZipFile(sources[0]) as z:
+              names=[n for n in z.namelist() if n.endswith('/SOURCE-SNAPSHOT.json')]
+              assert len(names)==1
+              snapshot=json.loads(z.read(names[0]))
+              assert snapshot['version']=='1.6.5' and snapshot['platform']=='macos' and snapshot['commit']=='eae832129fd0cbc822491606ce9215ac87c6bdcb'
+          files=list(root.rglob('*.dmg'))
+          assert len(files)==1
+          installer=files[0]
+          out=Path('exported');out.mkdir()
+          h=hashlib.sha256()
+          parts=[]
+          with installer.open('rb') as f:
+              while data:=f.read(64*1024*1024):
+                  h.update(data)
+                  name=f'mac-part-{len(parts):02d}.bin'
+                  (out/name).write_bytes(data)
+                  parts.append({'name':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+          assert len(parts)==5
+          manifest={'version':'1.6.5','sourceCommit':snapshot['commit'],'run':40266622558,'originalArtifact':12626666585,'dmg':{'name':installer.name,'bytes':installer.stat().st_size,'sha256':h.hexdigest()},'parts':parts}
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-part00
+          path: exported/mac-part-00.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-part01
+          path: exported/mac-part-01.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-part02
+          path: exported/mac-part-02.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-part03
+          path: exported/mac-part-03.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-part04
+          path: exported/mac-part-04.bin
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Haituo165-mac-manifest
+          path: exported/manifest.json
+          compression-level: 0

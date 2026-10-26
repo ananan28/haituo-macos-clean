@@ -21493,9 +21493,7 @@ http://jedwatson.github.io/classnames
         return !1;
     }
     function HaituoPolishOutgoingEnglish(source, text) {
-        if (!/[\u3400-\u9fff]/u.test(source) || !/^[\x00-\x7f\s\p{P}]+$/u.test(text)) return text;
-        let value = text.replace(/^It is\b/u, `It's`).replace(/^I am\b/u, `I'm`).replace(/^I will\b/u, `I'll`).replace(/^You are\b/u, `You're`).replace(/^We are\b/u, `We're`).replace(/\bdo not\b/giu, `don't`).replace(/\bcannot\b/giu, `can't`).replace(/\bwill not\b/giu, `won't`);
-        return /^又是(?:一个|个)?/u.test(source) && (value = value.replace(/^It's\s+another\s+/iu, `Another `).replace(/^It is\s+another\s+/iu, `Another `)), value;
+        return text;
     }
     function haituoProviderConfigured(settings, provider) {
         if(settings.translationPools)return true;
@@ -209520,7 +209518,7 @@ function haituoCachedSignalTranslation(text) {
                 }), (0, u6.jsx)(`button`, {
                     type: `button`,
                     disabled: l || !haituoQuickText.trim(),
-                    title: `调用 AI 结合最近聊天上下文，生成自然口语化译文`,
+                    title: `调用 AI 忠实原意，精准直译`,
                     "aria-label": `AI 重译`,
                     style: { width: `auto`, minWidth: `68px`, padding: `0 12px`, borderRadius: `10px`, fontSize: `14px`, fontWeight: 700, lineHeight: 1 },
                     onClick: () => void haituoQuickTranslate(!0),
@@ -230805,7 +230803,7 @@ function haituoCachedSignalTranslation(text) {
                     ]}):null,(0, O9.jsxs)(`div`, {
                         className: `HaituoTranslationStatus`,
                         style: { marginTop: `6px`, padding: `8px 10px`, borderRadius: `7px`, background: `#19150e`, color: `#ffe4a3`, border: `1px solid #765116`, fontSize: `12px`, lineHeight: `1.5` },
-                        children: [ (0, O9.jsx)(`strong`, { children: `当前选择：${m.chatTranslationProvider || `google-free`}；上次译文来源：` }), m.lastTranslationProvider ? `${({ "free-ai-natural": `AI 润色（Google 对照）`, "google-free": `Google 免费翻译`, mymemory: `MyMemory 免费备用`, groq: `Groq`, openai: `OpenAI`, deepl: `DeepL`, "google-cloud": `Google Cloud`, libre: `LibreTranslate`, microsoft: `微软翻译`, qwen: `Qwen`, glm: `GLM`, deepseek: `DeepSeek` })[m.lastTranslationProvider] ?? m.lastTranslationProvider}${m.lastTranslationCached ? `（缓存，无新请求）` : ``}${m.lastTranslationFallbackFrom ? `（${m.lastTranslationFallbackFrom} 失败后备用：${m.lastTranslationFallbackReason || `原因未知`}）` : ``}${Number.isFinite(m.lastTranslationMs) ? ` · ${m.lastTranslationMs}ms` : ``}` : `尚未执行翻译` ]
+                        children: [ (0, O9.jsx)(`strong`, { children: `当前选择：${m.chatTranslationProvider || `google-free`}；上次译文来源：` }), m.lastTranslationProvider ? `${({ "free-ai-natural": `AI 直译（Google 对照）`, "google-free": `Google 免费翻译`, mymemory: `MyMemory 免费备用`, groq: `Groq`, openai: `OpenAI`, deepl: `DeepL`, "google-cloud": `Google Cloud`, libre: `LibreTranslate`, microsoft: `微软翻译`, qwen: `Qwen`, glm: `GLM`, deepseek: `DeepSeek` })[m.lastTranslationProvider] ?? m.lastTranslationProvider}${m.lastTranslationCached ? `（缓存，无新请求）` : ``}${m.lastTranslationFallbackFrom ? `（${m.lastTranslationFallbackFrom} 失败后备用：${m.lastTranslationFallbackReason || `原因未知`}）` : ``}${Number.isFinite(m.lastTranslationMs) ? ` · ${m.lastTranslationMs}ms` : ``}` : `尚未执行翻译` ]
                     }), [ m.inputTranslationProvider, m.chatTranslationProvider, m.voiceTranscriptionProvider ].includes(`groq`) ? (0, O9.jsxs)(`label`, {
                         children: [ (0, O9.jsx)(`span`, {
                             children: `Groq API Key`

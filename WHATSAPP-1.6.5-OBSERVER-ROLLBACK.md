@@ -1,0 +1,13 @@
+# WhatsApp observer rollback diagnostic
+
+User cancelled resident persistence / short-ID / rehydrate work. This candidate restores the 1.6.4 ordinary translation scanner/observer reattach path, with the already verified explicit absolute webview preload, sandbox compatibility, TDZ correction, startup handshake and visible about:blank recovery retained.
+
+- No active resident controller, header fallback, short-ID parser or per-frame rehydrate in preload. The scanner reads message text directly and uses raw IDs only to guard against DOM reuse.
+- The local bilingual/SQLite view is disabled; WhatsApp message attachment and resident-cache IPC routes are disabled. The old database/cache files are never deleted or migrated by this rollback.
+- Successful WhatsApp translations are reused in RAM for this run, separately per trusted webContents workspace. Provider/long-chunk caches for WhatsApp do not read/write the disk translation cache. Cross-restart translation persistence is not a requirement. Signal keeps its existing native data/cache/renderer behavior unchanged.
+- Ordinary MutationObserver scans only affected visible message-container [data-id] rows. Initial open and one trailing scrollend/120ms-settle pass perform a full visible sweep; WhatsApp no longer has the periodic 2s full scan. A renderer session Map is keyed by account + current conversation + language + normalized source. A memory hit inserts synchronously before any await; existing translation nodes are reused, and cached scrolling/recreated history invokes no IPC. New untranslated rows use the ordinary translation service after scrolling settles. This explicitly allows reattachment; there is no resident/first-frame guarantee or custom chat view.
+- Incomplete cache-reuse changes are saved under archive/abandoned-1.6.5-cache-reuse/unfinished.patch, not applied. Superseded resident tests are archived; build sync cannot reinject the discarded controller.
+
+Validation: actual rollback scanner function is executed against 21 synthetic short/legacy-ID messages. Verify initial translation, removal then scroll reattach, recreated history reattach, no extra provider requests with session cache. Target-OS Chromium runs the same fixture, alongside retained sandboxed production guest startup and frozen Signal regression. Account real-history test remains UNTESTED until user verifies the installable diagnostic. No merge/release.
+
+Final user arrangement: this is observer reattach with a session-only Map, not resident/SQL persistence. No short-ID/header chatId parser is active; the current header label only names the ephemeral renderer memo context. Cross-restart recovery is not required.

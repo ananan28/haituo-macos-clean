@@ -1,0 +1,63 @@
+name: Viber macOS distinct sandbox investigation
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+    paths: ['.github/workflows/viber-macos-sandbox.yml']
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - name: Test isolated unsigned copies on ephemeral machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 180 'https://download.viber.com/desktop/mac/online/Viber.dmg' -o "$RUNNER_TEMP/Viber.dmg"
+          mkdir -p "$RUNNER_TEMP/viber-volume"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/viber-volume" "$RUNNER_TEMP/Viber.dmg"
+          trap 'hdiutil detach "$RUNNER_TEMP/viber-volume" || true' EXIT
+          sourceApp="$(find "$RUNNER_TEMP/viber-volume" -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "$sourceApp"
+          codesign --verify --deep --strict "$sourceApp"
+          ditto "$sourceApp" /Applications/Viber.app
+          open -n /Applications/Viber.app
+          for i in {1..40}; do
+            version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/Viber.app/Contents/Info.plist 2>/dev/null || true)
+            [ "$version" != "1.0.0.110" ] && [ -n "$version" ] && break
+            sleep 3
+          done
+          echo "installed-version=$version"
+          test "$version" != "1.0.0.110"
+          pkill -f '^/Applications/Viber.app/Contents/MacOS/Viber' || true
+          sleep 3
+          cat > "$RUNNER_TEMP/sandbox.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>com.apple.security.app-sandbox</key><true/>
+          <key>com.apple.security.network.client</key><true/>
+          <key>com.apple.security.network.server</key><true/>
+          </dict></plist>
+          PLIST
+          for index in 1 2; do
+            app="/Applications/ViberSpike$index.app"
+            ditto /Applications/Viber.app "$app"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.haituo.viberspike$index" "$app/Contents/Info.plist"
+            codesign --force --deep --sign - --entitlements "$RUNNER_TEMP/sandbox.plist" "$app"
+            codesign --verify --deep --strict "$app"
+            open -n "$app"
+            sleep 8
+          done
+          sleep 8
+          user_home_path="$(python3 -c 'import os; print(os.path.expanduser("~"))')"
+          for index in 1 2; do
+            path="/Applications/ViberSpike$index.app/Contents/MacOS/Viber"
+            echo "--- spike $index ---"
+            pgrep -ifl "$path" || { echo "UNTESTED: sandbox copy did not remain running"; exit 1; }
+            container="$user_home_path/Library/Containers/com.haituo.viberspike$index"
+            if [ -d "$container" ]; then echo "distinct-container-$index=present"; else echo "distinct-container-$index=absent"; exit 1; fi
+          done
+          osascript -e 'tell application "System Events" to count every application process whose background only is false' || true
+          echo 'UNTESTED: account login, account data separation, Keychain, usable windows, updates, translation'

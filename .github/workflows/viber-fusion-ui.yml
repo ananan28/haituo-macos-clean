@@ -60,6 +60,7 @@ jobs:
           cp "$APP/Contents/MacOS/HaituoViberFusion" "$RUNNER_TEMP/fusion-test-runner"
           "$RUNNER_TEMP/fusion-test-runner" &
           sleep 3
+          for round in 1 2 3; do
           for index in 1 2 3 4 5; do
             osascript -e "tell application \"System Events\" to tell process \"fusion-test-runner\" to click button \"Viber $index\" of window 1"
             ready=0
@@ -68,13 +69,14 @@ jobs:
               if [ "$title" = "Fusion: Ready slot $index" ]; then ready=1; break; fi
               sleep 1
             done
-            echo "FUSION_SLOT_$index=$ready"
+            echo "FUSION_ROUND_\${round}_SLOT_\${index}=$ready"
             if [ "$ready" != 1 ]; then
               echo "Prototype status:"
               osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to get value of every static text of window 1' || true
               echo "Window title=$title"
             fi
             test "$ready" = 1
+          done
           done
           swiftc viber-fusion/integrated-click-test.swift -o "$RUNNER_TEMP/integrated-click-test"
           host_pid="$(pgrep -f "^$RUNNER_TEMP/fusion-test-runner" | head -1)"

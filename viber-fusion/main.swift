@@ -112,19 +112,24 @@ final class FrameSink: NSObject, SCStreamOutput {
     let context=CIContext(options:nil)
     weak var view: FusionView?
     var onFrame: (() -> Void)?
+    var isCurrent: (() -> Bool)?
     init(_ view:FusionView) { self.view=view }
     func stream(_ stream:SCStream,didOutputSampleBuffer sampleBuffer:CMSampleBuffer,of type:SCStreamOutputType) {
         guard type == .screen, sampleBuffer.isValid, let buffer=CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let input=CIImage(cvPixelBuffer:buffer)
         guard let image=context.createCGImage(input,from:input.extent) else { return }
-        DispatchQueue.main.async { [weak self] in self?.view?.image=image; self?.view?.needsDisplay=true; self?.onFrame?() }
+        DispatchQueue.main.async { [weak self] in
+            guard let self=self, self.isCurrent?() == true else { return }
+            self.view?.image=image; self.view?.needsDisplay=true; self.onFrame?()
+        }
     }
 }
 final class Delegate: NSObject, NSApplicationDelegate {
     var window:NSWindow!
     var viewer:FusionView!
     var status:NSTextField!
-    var sink:FrameSink!
+    var sink:FrameSink?
+    var generation = 0
     var stream:SCStream?
     var buttons:[NSButton]=[]
     var selected=0
@@ -140,13 +145,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
         status.lineBreakMode = .byTruncatingTail; status.translatesAutoresizingMaskIntoConstraints=false; root.addSubview(status)
         viewer=FusionView(); viewer.setAccessibilityElement(true); viewer.setAccessibilityRole(.group); viewer.setAccessibilityLabel("Fusion viewport"); viewer.translatesAutoresizingMaskIntoConstraints=false; root.addSubview(viewer)
         viewer.feedback={ [weak self] message in self?.status.stringValue=message }
-        sink=FrameSink(viewer)
         NSLayoutConstraint.activate([header.leadingAnchor.constraint(equalTo:root.leadingAnchor,constant:12),header.topAnchor.constraint(equalTo:root.topAnchor,constant:10),header.heightAnchor.constraint(equalToConstant:32),status.leadingAnchor.constraint(equalTo:root.leadingAnchor,constant:12),status.topAnchor.constraint(equalTo:header.bottomAnchor,constant:5),status.trailingAnchor.constraint(equalTo:root.trailingAnchor,constant:-12),viewer.leadingAnchor.constraint(equalTo:root.leadingAnchor),viewer.trailingAnchor.constraint(equalTo:root.trailingAnchor),viewer.topAnchor.constraint(equalTo:status.bottomAnchor,constant:8),viewer.bottomAnchor.constraint(equalTo:root.bottomAnchor)])
         window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
     }
     @objc func selectSlot(_ sender:NSButton) {
         guard !pending else { return }
         let slot=sender.tag; pending=true; buttons.forEach{$0.isEnabled=false}
+        generation += 1; selected=0; viewer.target=nil; viewer.image=nil; viewer.needsDisplay=true
         status.stringValue="正在启动账号 \(slot)……首次准备可能需要几分钟。"
         if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess(); pending=false; buttons.forEach{$0.isEnabled=true}; status.stringValue="请允许屏幕录制，然后重启并重试。"; return }
         if !AXIsProcessTrusted() { let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary; _ = AXIsProcessTrustedWithOptions(options); pending=false; buttons.forEach{$0.isEnabled=true}; status.stringValue="请允许辅助功能权限，然后重试。"; return }
@@ -179,12 +184,15 @@ final class Delegate: NSObject, NSApplicationDelegate {
                 guard let target=content.windows.first(where:{$0.owningApplication?.processID == app.processIdentifier && $0.frame.width > 100 && $0.frame.height > 100}) else { throw NSError(domain:"fusion",code:1,userInfo:[NSLocalizedDescriptionKey:"没有找到 Viber 窗口"]) }
                 let config=SCStreamConfiguration(); config.width=Int(target.frame.width); config.height=Int(target.frame.height); config.minimumFrameInterval=CMTime(value:1,timescale:10); config.queueDepth=3; config.showsCursor=false
                 let next=SCStream(filter:SCContentFilter(desktopIndependentWindow:target),configuration:config,delegate:nil)
-                try next.addStreamOutput(sink,type:.screen,sampleHandlerQueue:DispatchQueue(label:"haituo.viber.frames"))
+                let frameSink=FrameSink(viewer); let currentGeneration=generation
+                frameSink.isCurrent={ [weak self] in self?.generation == currentGeneration }
+                sink=frameSink
+                try next.addStreamOutput(frameSink,type:.screen,sampleHandlerQueue:DispatchQueue(label:"haituo.viber.frames"))
                 selected=slot
-                sink.onFrame={ [weak self] in
+                frameSink.onFrame={ [weak self, weak frameSink] in
                     guard let self=self, self.selected==slot else { return }
                     self.window.title="Fusion: Ready slot \(slot)"
-                    self.sink.onFrame=nil
+                    frameSink?.onFrame=nil
                 }
                 try await next.startCapture(); stream=next; viewer.target=app; viewer.targetFrame=target.frame
                 window.makeKeyAndOrderFront(nil); window.makeFirstResponder(viewer); NSApp.activate(ignoringOtherApps:true)

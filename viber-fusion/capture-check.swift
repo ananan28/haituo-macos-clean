@@ -62,7 +62,18 @@ final class FrameCounter: NSObject, SCStreamOutput {
                     var role: CFTypeRef?
                     if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success, let name = role as? String { roles[name, default: 0] += 1 }
                     var actions: CFArray?
-                    if AXUIElementCopyActionNames(element, &actions) == .success, let names = actions as? [String], names.contains(kAXPressAction as String) { pressable += 1 }
+                    if AXUIElementCopyActionNames(element, &actions) == .success, let names = actions as? [String], names.contains(kAXPressAction as String) {
+                        pressable += 1
+                        var posRaw: CFTypeRef?, sizeRaw: CFTypeRef?
+                        var pos = CGPoint.zero, size = CGSize.zero
+                        if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRaw) == .success,
+                           AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRaw) == .success,
+                           let p = posRaw, let z = sizeRaw, CFGetTypeID(p) == AXValueGetTypeID(), CFGetTypeID(z) == AXValueGetTypeID() {
+                            _ = AXValueGetValue(p as! AXValue, .cgPoint, &pos)
+                            _ = AXValueGetValue(z as! AXValue, .cgSize, &size)
+                            print("PRESSABLE_GEOMETRY x=\(Int(pos.x)) y=\(Int(pos.y)) w=\(Int(size.width)) h=\(Int(size.height))")
+                        }
+                    }
                     var children: CFTypeRef?
                     if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success, let found = children as? [AXUIElement] { stack.append(contentsOf: found) }
                 }

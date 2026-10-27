@@ -1,0 +1,42 @@
+name: Viber personal Windows client probe - no release
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+    paths: ['.github/workflows/viber-windows-client.yml']
+permissions:
+  contents: read
+jobs:
+  windows-client:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Install signed official Viber MSI in ephemeral runner
+        shell: pwsh
+        run: |
+          $msi = Join-Path $env:RUNNER_TEMP 'Viber29.msi'
+          Invoke-WebRequest 'https://download.cdn.viber.com/desktop/windows/29.1.0/ViberSetup.msi' -OutFile $msi
+          $sig = Get-AuthenticodeSignature $msi
+          Write-Host ("MSI-signature=" + $sig.Status)
+          if ($sig.SignerCertificate) { Write-Host ("MSI-signer=" + $sig.SignerCertificate.Subject) }
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Viber') { throw 'MSI publisher signature invalid' }
+          $install = Start-Process -FilePath msiexec.exe -ArgumentList @('/i', $msi, '/qn', '/norestart') -Wait -PassThru
+          Write-Host ("Installer-exit=" + $install.ExitCode)
+          if ($install.ExitCode -notin @(0,3010)) { throw 'MSI install failed' }
+          $roots = @((Join-Path $env:LOCALAPPDATA 'Viber'), (Join-Path $env:ProgramFiles 'Viber'), (Join-Path ${env:ProgramFiles(x86)} 'Viber'))
+          $exe = $roots | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem -Path $_ -Filter 'Viber.exe' -File -Recurse -ErrorAction SilentlyContinue } | Select-Object -First 1
+          if (-not $exe) { throw 'Installed Viber.exe not found in expected locations' }
+          $exeSig=Get-AuthenticodeSignature $exe.FullName
+          Write-Host ("Client-signature=" + $exeSig.Status + "; version=" + $exe.VersionInfo.ProductVersion)
+          if ($exeSig.Status -ne 'Valid') { throw 'Installed client signature invalid' }
+          $process=Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 20
+          $process.Refresh()
+          Write-Host ("Client-process-running=" + (-not $process.HasExited))
+          if ($process.HasExited) { throw 'Client exited before inspection' }
+          Add-Type -AssemblyName UIAutomationClient
+          $root = [System.Windows.Automation.AutomationElement]::RootElement
+          $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)
+          $found=$root.FindAll([System.Windows.Automation.TreeScope]::Children,$condition)
+          Write-Host ("UIA top-level window count=" + $found.Count)
+          Write-Host 'UNTESTED: login, personal messages, translation, native embedding, multi-account'
+          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue

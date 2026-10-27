@@ -1,4 +1,4 @@
-param([switch]$SelfTest)
+param([switch]$SelfTest, [switch]$CountOnly)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -50,7 +50,8 @@ if ($SelfTest) {
 try {
     Write-Host 'Viber accessibility diagnostic: counts only; no chat text is saved or sent.'
     Write-Host 'Open Viber on this computer and open a test chat containing a unique test phrase.'
-    $phrase=Read-Host 'Enter the test phrase to check locally (or press Enter to only count controls)'
+    $phrase=''
+    if (-not $CountOnly) { $phrase=Read-Host 'Enter the test phrase to check locally (or press Enter to only count controls)' }
     $processes=@(Get-Process -Name Viber -ErrorAction SilentlyContinue)
     if ($processes.Count -eq 0) { throw 'Viber process not found. Start the official Viber desktop app first.' }
     $results=@(foreach ($p in $processes) { Get-ProbeResult $p.Id $phrase })

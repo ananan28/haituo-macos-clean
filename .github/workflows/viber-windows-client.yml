@@ -10,6 +10,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
       - name: Install signed official Viber MSI in ephemeral runner
         shell: pwsh
         run: |
@@ -42,6 +43,8 @@ jobs:
           $root = [System.Windows.Automation.AutomationElement]::RootElement
           $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)
           $found=$root.FindAll([System.Windows.Automation.TreeScope]::Children,$condition)
+          & powershell.exe -NoProfile -File ./viber-probe/Viber-UI-Check.ps1 -CountOnly
+          if ($LASTEXITCODE -ne 0) { throw "Diagnostic failed on running Viber" }
           Write-Host ("UIA top-level window count=" + $found.Count)
           if ($found.Count -gt 0) {
             $all=$found.Item(0).FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)

@@ -29,6 +29,8 @@ jobs:
           sleep 2
           "$RUNNER_TEMP/event-inject" "$target_pid"
           sleep 2
+          if test -f "$RUNNER_TEMP/target.mouse"; then echo MOUSE_DELIVERED=yes; else echo MOUSE_DELIVERED=no; fi
+          if test -f "$RUNNER_TEMP/target.key"; then echo KEY_DELIVERED=yes; else echo KEY_DELIVERED=no; fi
           test -f "$RUNNER_TEMP/target.mouse"
           test -f "$RUNNER_TEMP/target.key"
           echo 'INPUT_FIXTURE_OK: obscured target received mouse and keyboard'

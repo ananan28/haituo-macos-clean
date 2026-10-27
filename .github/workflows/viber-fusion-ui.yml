@@ -68,6 +68,11 @@ jobs:
               sleep 1
             done
             echo "FUSION_SLOT_$index=$ready"
+            if [ "$ready" != 1 ]; then
+              echo "Prototype status:"
+              osascript -e 'tell application "System Events" to tell process "HaituoViberFusion" to get value of every static text of window 1' || true
+              echo "Window title=$title"
+            fi
             test "$ready" = 1
           done
           echo 'UNTESTED: logged-in accounts, data isolation, typing, IME, scrolling, WhatsApp/Signal/Telegram integration'

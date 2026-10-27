@@ -28,11 +28,16 @@ jobs:
           $exeSig=Get-AuthenticodeSignature $exe.FullName
           Write-Host ("Client-signature=" + $exeSig.Status + "; version=" + $exe.VersionInfo.ProductVersion)
           if ($exeSig.Status -ne 'Valid') { throw 'Installed client signature invalid' }
-          $process=Start-Process -FilePath $exe.FullName -PassThru
-          Start-Sleep -Seconds 20
-          $process.Refresh()
-          Write-Host ("Client-process-running=" + (-not $process.HasExited))
-          if ($process.HasExited) { throw 'Client exited before inspection' }
+          $before = @(Get-Process -Name Viber -ErrorAction SilentlyContinue)
+          Write-Host ("Existing-Viber-processes=" + $before.Count)
+          if ($before.Count -eq 0) { Start-Process -FilePath $exe.FullName | Out-Null }
+          Start-Sleep -Seconds 15
+          $candidates=@(Get-Process -Name Viber -ErrorAction SilentlyContinue)
+          Write-Host ("Viber-processes=" + $candidates.Count)
+          foreach($p in $candidates){ Write-Host ("pid="+$p.Id+" handle="+$p.MainWindowHandle+" responding="+$p.Responding) }
+          if ($candidates.Count -eq 0) { throw 'No Viber client process remained running' }
+          $process=$candidates | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+          if (-not $process) { throw 'Viber has no detected top-level window' }
           Add-Type -AssemblyName UIAutomationClient
           $root = [System.Windows.Automation.AutomationElement]::RootElement
           $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)

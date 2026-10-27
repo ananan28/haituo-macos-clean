@@ -1,0 +1,35 @@
+name: Viber macOS background input feasibility
+on:
+  push:
+    branches: ['spike/viber-macos-fusion']
+    paths: ['viber-fusion/event-*.swift', '.github/workflows/viber-macos-input.yml']
+permissions:
+  contents: read
+jobs:
+  input:
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test pointer and keyboard delivery to an obscured test window
+        shell: bash
+        run: |
+          set -euo pipefail
+          swiftc viber-fusion/event-fixture.swift -o "$RUNNER_TEMP/event-fixture"
+          swiftc viber-fusion/event-inject.swift -o "$RUNNER_TEMP/event-inject"
+          "$RUNNER_TEMP/event-fixture" target "$RUNNER_TEMP/target" &
+          target_pid=$!
+          trap 'kill "$target_pid" "$host_pid" 2>/dev/null || true' EXIT
+          for i in {1..30}; do test -f "$RUNNER_TEMP/target.ready" && break; sleep 1; done
+          test -f "$RUNNER_TEMP/target.ready"
+          "$RUNNER_TEMP/event-fixture" host "$RUNNER_TEMP/host" &
+          host_pid=$!
+          for i in {1..30}; do test -f "$RUNNER_TEMP/host.ready" && break; sleep 1; done
+          test -f "$RUNNER_TEMP/host.ready"
+          sleep 2
+          "$RUNNER_TEMP/event-inject" "$target_pid"
+          sleep 2
+          test -f "$RUNNER_TEMP/target.mouse"
+          test -f "$RUNNER_TEMP/target.key"
+          echo 'INPUT_FIXTURE_OK: obscured target received mouse and keyboard'
+          echo 'UNTESTED: actual Viber, account data, IME, scrolling, drag, live capture'

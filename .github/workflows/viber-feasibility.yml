@@ -1,0 +1,51 @@
+name: Viber personal desktop feasibility - no release
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - name: Inspect official Viber Windows installer
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'ViberSetup.exe'
+          Invoke-WebRequest -Uri 'https://download.cdn.viber.com/desktop/windows/ViberSetup.exe' -OutFile $path
+          $sig = Get-AuthenticodeSignature -FilePath $path
+          $hash = Get-FileHash -Algorithm SHA256 -Path $path
+          Write-Host ("SHA256=" + $hash.Hash)
+          Write-Host ("SignatureStatus=" + $sig.Status)
+          if ($sig.SignerCertificate) { Write-Host ("Signer=" + $sig.SignerCertificate.Subject) }
+          if ($sig.Status -ne 'Valid') { throw 'Official installer signature is not valid' }
+          $version = (Get-Item $path).VersionInfo
+          Write-Host ("ProductName=" + $version.ProductName + "; ProductVersion=" + $version.ProductVersion)
+          & 7z l $path
+          if ($LASTEXITCODE -ne 0) { Write-Host 'Installer archive not readable by 7z; installation not attempted' }
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - name: Inspect and open official Viber desktop unlinked
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --max-time 240 'https://download.viber.com/desktop/mac/online/Viber.dmg' -o "$RUNNER_TEMP/Viber.dmg"
+          shasum -a 256 "$RUNNER_TEMP/Viber.dmg"
+          mkdir -p "$RUNNER_TEMP/viber-volume"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/viber-volume" "$RUNNER_TEMP/Viber.dmg"
+          trap 'hdiutil detach "$RUNNER_TEMP/viber-volume" || true' EXIT
+          app="$(find "$RUNNER_TEMP/viber-volume" -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict "$app"
+          codesign -dv "$app" 2>&1 | head -15
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist"
+          open -n "$app"
+          sleep 12
+          osascript -e 'tell application "System Events" to get name of every application process whose background only is false'
+          pgrep -ifl 'Viber' || { echo 'Viber process not observed'; exit 1; }
+          echo 'UNTESTED: account login, personal messages, translation, window embedding, multi-account'

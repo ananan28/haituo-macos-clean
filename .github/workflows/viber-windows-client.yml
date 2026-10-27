@@ -43,5 +43,35 @@ jobs:
           $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)
           $found=$root.FindAll([System.Windows.Automation.TreeScope]::Children,$condition)
           Write-Host ("UIA top-level window count=" + $found.Count)
-          Write-Host 'UNTESTED: login, personal messages, translation, native embedding, multi-account'
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class ViberProbe {
+            [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr SetParent(IntPtr h, IntPtr p);
+            [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+            [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int hgt,bool repaint);
+          }
+          '@
+          $form=New-Object System.Windows.Forms.Form
+          $form.Text='Disposable embedding probe'
+          $form.ClientSize=New-Object System.Drawing.Size(1000,700)
+          $form.Show()
+          $hwnd=$process.MainWindowHandle
+          $oldParent=[ViberProbe]::GetParent($hwnd)
+          try {
+            [void][ViberProbe]::SetParent($hwnd,$form.Handle)
+            $parent=[ViberProbe]::GetParent($hwnd)
+            Write-Host ("Windows-reparent-equal=" + ($parent -eq $form.Handle))
+            if ($parent -ne $form.Handle) { throw 'SetParent did not attach Viber window' }
+            [void][ViberProbe]::MoveWindow($hwnd,0,0,900,600,$true)
+            Start-Sleep -Seconds 3
+            $process.Refresh()
+            Write-Host ("Client-responsive-after-reparent=" + $process.Responding)
+            if (-not $process.Responding) { throw 'Viber became unresponsive after reparent' }
+          } finally {
+            [void][ViberProbe]::SetParent($hwnd,$oldParent)
+            $form.Close()
+          }
+          Write-Host 'UNTESTED: login, personal messages, translation, real-account embedding and multi-account'
           Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue

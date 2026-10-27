@@ -1,0 +1,37 @@
+name: Viber macOS install and multi-instance investigation
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+    paths: ['.github/workflows/viber-macos-multi.yml']
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - name: Install official Viber into disposable runner and inspect processes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 180 'https://download.viber.com/desktop/mac/online/Viber.dmg' -o "$RUNNER_TEMP/Viber.dmg"
+          mkdir -p "$RUNNER_TEMP/viber-volume"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/viber-volume" "$RUNNER_TEMP/Viber.dmg"
+          trap 'hdiutil detach "$RUNNER_TEMP/viber-volume" || true' EXIT
+          sourceApp="$(find "$RUNNER_TEMP/viber-volume" -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "$sourceApp"
+          codesign --verify --deep --strict "$sourceApp"
+          ditto "$sourceApp" /Applications/Viber.app
+          open -n /Applications/Viber.app
+          sleep 55
+          echo '--- Bundle after first launch ---'
+          du -sh /Applications/Viber.app
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/Viber.app/Contents/Info.plist || true
+          echo '--- First process ---'
+          pgrep -ifl '/Applications/Viber.app/Contents/MacOS/Viber' || true
+          echo '--- Second launch ---'
+          open -n /Applications/Viber.app || true
+          sleep 15
+          pgrep -ifl '/Applications/Viber.app/Contents/MacOS/Viber' || true
+          osascript -e 'tell application "System Events" to get name of every application process whose background only is false' || true
+          echo 'UNTESTED: independent profiles, login, personal messages, account isolation, UI integration'

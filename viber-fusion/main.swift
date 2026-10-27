@@ -124,7 +124,7 @@ final class FrameSink: NSObject, SCStreamOutput {
         }
     }
 }
-final class Delegate: NSObject, NSApplicationDelegate {
+final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window:NSWindow!
     var viewer:FusionView!
     var status:NSTextField!
@@ -136,7 +136,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
     var pending=false
     func applicationDidFinishLaunching(_ notification:Notification) {
         window=NSWindow(contentRect:NSRect(x:0,y:0,width:1100,height:780),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
-        window.title="Viber 同窗口融合实验"; window.center(); window.minSize=NSSize(width:700,height:500)
+        window.title="Viber 同窗口融合实验"; window.center(); window.minSize=NSSize(width:700,height:500); window.delegate=self
         let root=window.contentView!
         let header=NSStackView(); header.orientation = .horizontal; header.spacing=6; header.translatesAutoresizingMaskIntoConstraints=false
         for slot in 1...5 { let b=NSButton(title:"Viber \(slot)",target:self,action:#selector(selectSlot(_:))); b.tag=slot; header.addArrangedSubview(b); buttons.append(b) }
@@ -199,7 +199,37 @@ final class Delegate: NSObject, NSApplicationDelegate {
                 try await next.startCapture(); stream=next; viewer.target=app; viewer.targetFrame=target.frame
                 window.makeKeyAndOrderFront(nil); window.makeFirstResponder(viewer); NSApp.activate(ignoringOtherApps:true)
                 done("账号 \(slot) 画面已连接；仅支持可访问控件点击，输入与滚动尚未完整验证。")
+                alignSourceWindow()
             } catch { done("连接失败：\(error.localizedDescription)") }
+        }
+    }
+    func windowDidMove(_ notification:Notification) { alignSourceWindow() }
+    func windowDidResize(_ notification:Notification) { alignSourceWindow() }
+    func alignSourceWindow() {
+        guard !pending, selected > 0, let app=viewer.target, let window=window else { return }
+        guard let rows=CGWindowListCopyWindowInfo([.optionIncludingWindow],CGWindowID(window.windowNumber)) as? [[String:Any]],
+              let row=rows.first, let bounds=row[kCGWindowBounds as String] as? [String:Any],
+              let x=(bounds["X"] as? NSNumber)?.doubleValue, let y=(bounds["Y"] as? NSNumber)?.doubleValue,
+              let width=(bounds["Width"] as? NSNumber)?.doubleValue, let height=(bounds["Height"] as? NSNumber)?.doubleValue else { return }
+        let application=AXUIElementCreateApplication(app.processIdentifier); var raw:CFTypeRef?
+        guard AXUIElementCopyAttributeValue(application,kAXWindowsAttribute as CFString,&raw) == .success, let windows=raw as? [AXUIElement], let source=windows.first else { return }
+        var desiredSize=CGSize(width:max(1,width-20),height:max(1,height-90))
+        var desiredPosition=CGPoint(x:x+10,y:y+80)
+        guard let size=AXValueCreate(.cgSize,&desiredSize),let pos=AXValueCreate(.cgPoint,&desiredPosition) else { return }
+        let sizeResult=AXUIElementSetAttributeValue(source,kAXSizeAttribute as CFString,size)
+        let positionResult=AXUIElementSetAttributeValue(source,kAXPositionAttribute as CFString,pos)
+        var actualPos:CFTypeRef?,actualSize:CFTypeRef?,p=CGPoint.zero,z=CGSize.zero
+        if sizeResult == .success, positionResult == .success,
+           AXUIElementCopyAttributeValue(source,kAXPositionAttribute as CFString,&actualPos) == .success,
+           AXUIElementCopyAttributeValue(source,kAXSizeAttribute as CFString,&actualSize) == .success,
+           let ap=actualPos,let az=actualSize,CFGetTypeID(ap)==AXValueGetTypeID(),CFGetTypeID(az)==AXValueGetTypeID(),
+           AXValueGetValue(ap as! AXValue,.cgPoint,&p),AXValueGetValue(az as! AXValue,.cgSize,&z),
+           CGRect(x:x,y:y,width:width,height:height).insetBy(dx:-1,dy:-1).contains(CGRect(origin:p,size:z)) {
+            viewer.targetFrame=CGRect(origin:p,size:z)
+        } else {
+            _=AXUIElementSetAttributeValue(source,kAXMinimizedAttribute as CFString,kCFBooleanTrue)
+            viewer.target=nil
+            status.stringValue="无法安全对齐 Viber 窗口，已暂停操作；请重新选择账号。"
         }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender:NSApplication)->Bool { true }

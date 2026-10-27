@@ -1,0 +1,16 @@
+name: Viber local diagnostic self-test
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+    paths: ['viber-probe/**', '.github/workflows/viber-diagnostic.yml']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test accessibility probe on synthetic window
+        shell: powershell
+        run: ./viber-probe/Viber-UI-Check.ps1 -SelfTest

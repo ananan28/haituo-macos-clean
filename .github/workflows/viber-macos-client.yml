@@ -1,0 +1,33 @@
+name: Viber macOS full-client probe - no release
+on:
+  push:
+    branches: ['spike/viber-personal-desktop']
+    paths: ['.github/workflows/viber-macos-client.yml']
+permissions:
+  contents: read
+jobs:
+  macos-client:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - name: Inspect alternative official macOS package
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 240 'https://download.viber.com/desktop/mac/Viber.dmg' -o "$RUNNER_TEMP/Viber-full.dmg"
+          ls -lh "$RUNNER_TEMP/Viber-full.dmg"
+          shasum -a 256 "$RUNNER_TEMP/Viber-full.dmg"
+          mkdir -p "$RUNNER_TEMP/viber-full"
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/viber-full" "$RUNNER_TEMP/Viber-full.dmg"
+          trap 'hdiutil detach "$RUNNER_TEMP/viber-full" || true' EXIT
+          app="$(find "$RUNNER_TEMP/viber-full" -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict "$app"
+          codesign -dv "$app" 2>&1 | head -12
+          echo "Bundle version:"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist"
+          du -sh "$app"
+          open -n "$app"
+          sleep 20
+          pgrep -ifl '/Viber.app/Contents/MacOS/Viber' || { echo 'Viber process not observed'; exit 1; }
+          echo 'UNTESTED: account login, messages, translation, embedding and multi-account'

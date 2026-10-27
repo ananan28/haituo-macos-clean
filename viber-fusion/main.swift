@@ -230,11 +230,12 @@ final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let sizeResult=AXUIElementSetAttributeValue(source,kAXSizeAttribute as CFString,size)
         let positionResult=AXUIElementSetAttributeValue(source,kAXPositionAttribute as CFString,pos)
         var actualPos:CFTypeRef?,actualSize:CFTypeRef?,p=CGPoint.zero,z=CGSize.zero
-        if sizeResult == .success, positionResult == .success,
-           AXUIElementCopyAttributeValue(source,kAXPositionAttribute as CFString,&actualPos) == .success,
-           AXUIElementCopyAttributeValue(source,kAXSizeAttribute as CFString,&actualSize) == .success,
-           let ap=actualPos,let az=actualSize,CFGetTypeID(ap)==AXValueGetTypeID(),CFGetTypeID(az)==AXValueGetTypeID(),
-           AXValueGetValue(ap as! AXValue,.cgPoint,&p),AXValueGetValue(az as! AXValue,.cgSize,&z),
+        let readPos=AXUIElementCopyAttributeValue(source,kAXPositionAttribute as CFString,&actualPos)
+        let readSize=AXUIElementCopyAttributeValue(source,kAXSizeAttribute as CFString,&actualSize)
+        if let ap=actualPos,let az=actualSize,CFGetTypeID(ap)==AXValueGetTypeID(),CFGetTypeID(az)==AXValueGetTypeID() {
+            _=AXValueGetValue(ap as! AXValue,.cgPoint,&p); _=AXValueGetValue(az as! AXValue,.cgSize,&z)
+        }
+        if sizeResult == .success, positionResult == .success, readPos == .success, readSize == .success,
            CGRect(x:x,y:y,width:width,height:height).insetBy(dx:-1,dy:-1).contains(CGRect(origin:p,size:z)) {
             viewer.targetFrame=CGRect(origin:p,size:z)
         } else {
@@ -242,7 +243,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             viewer.target=nil
             viewer.image=nil; viewer.needsDisplay=true; generation += 1
             window.title="Fusion: Alignment failed"
-            status.stringValue="无法安全对齐 Viber 窗口，已暂停操作；请重新选择账号。"
+            status.stringValue="无法安全对齐 Viber 窗口：size=\(sizeResult.rawValue) position=\(positionResult.rawValue) host=\(Int(width))x\(Int(height)) actual=\(Int(z.width))x\(Int(z.height))@\(Int(p.x)),\(Int(p.y))；已暂停操作。"
         }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender:NSApplication)->Bool { true }

@@ -56,6 +56,7 @@ final class FrameCounter: NSObject, SCStreamOutput {
                 print("AX_WINDOW_QUERY status=\(windowStatus.rawValue) count=\(windowElements.count)")
                 var stack = windowElements
                 var count = 0, pressable = 0
+                var bodyPressTarget: AXUIElement?
                 var roles: [String: Int] = [:]
                 while let element = stack.popLast(), count < 1000 {
                     count += 1
@@ -72,12 +73,17 @@ final class FrameCounter: NSObject, SCStreamOutput {
                             _ = AXValueGetValue(p as! AXValue, .cgPoint, &pos)
                             _ = AXValueGetValue(z as! AXValue, .cgSize, &size)
                             print("PRESSABLE_GEOMETRY x=\(Int(pos.x)) y=\(Int(pos.y)) w=\(Int(size.width)) h=\(Int(size.height))")
+                            if bodyPressTarget == nil && size.width >= 50 && size.height >= 20 && pos.y >= window.frame.minY + 60 { bodyPressTarget = element }
                         }
                     }
                     var children: CFTypeRef?
                     if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success, let found = children as? [AXUIElement] { stack.append(contentsOf: found) }
                 }
                 print("ACCESSIBILITY_COUNTS total=\(count) pressable=\(pressable) roles=\(roles)")
+                guard let bodyButton = bodyPressTarget else { fputs("NO_ACTIONABLE_BODY_BUTTON\n",stderr); exit(16) }
+                let pressed = AXUIElementPerformAction(bodyButton, kAXPressAction as CFString)
+                print("VIBER_BODY_AX_PRESS status=\(pressed.rawValue)")
+                guard pressed == .success else { exit(17) }
             } else { print("ACCESSIBILITY_UNTESTED") }
             print("UNTESTED: live embedding, mouse, keyboard, focus, account login and privacy isolation")
         } catch {

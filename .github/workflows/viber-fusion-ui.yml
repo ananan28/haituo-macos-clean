@@ -90,4 +90,9 @@ jobs:
           [[ "$status" == *"点击已发送"* ]]
           swiftc viber-fusion/stack-check.swift -o "$RUNNER_TEMP/stack-check"
           "$RUNNER_TEMP/stack-check" "$host_pid" "$target_pid"
+          osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to set size of window 1 to {800, 600}'
+          osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to set position of window 1 to {100, 90}'
+          sleep 1
+          echo 'STACK_AFTER_MOVE_AND_RESIZE'
+          "$RUNNER_TEMP/stack-check" "$host_pid" "$target_pid"
           echo 'UNTESTED: installed app TCC, logged-in accounts, data isolation, typing, IME, scrolling, WhatsApp/Signal/Telegram integration'

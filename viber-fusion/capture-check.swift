@@ -49,7 +49,12 @@ final class FrameCounter: NSObject, SCStreamOutput {
             print("STREAM_FRAME_COUNT=\(frameCount)")
             guard frameCount >= 2 else { fputs("STREAM_NOT_ENOUGH_FRAMES\\n", stderr); exit(15) }
             if AXIsProcessTrusted() {
-                var stack = [AXUIElementCreateApplication(process.processIdentifier)]
+                let application = AXUIElementCreateApplication(process.processIdentifier)
+                var rawWindows: CFTypeRef?
+                let windowStatus = AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &rawWindows)
+                let windowElements = rawWindows as? [AXUIElement] ?? []
+                print("AX_WINDOW_QUERY status=\(windowStatus.rawValue) count=\(windowElements.count)")
+                var stack = windowElements
                 var count = 0, pressable = 0
                 var roles: [String: Int] = [:]
                 while let element = stack.popLast(), count < 1000 {

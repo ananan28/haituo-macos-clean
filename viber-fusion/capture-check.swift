@@ -5,7 +5,7 @@ import Foundation
 
 @main struct CaptureProbe {
     static func main() async {
-        let identifier = "com.haituo.viberpreview.slot1"
+        let identifier = "com.haituo.viberpreview.slot5"
         guard CGPreflightScreenCaptureAccess() else {
             fputs("SCREEN_CAPTURE_UNTRUSTED: screen recording permission missing\n", stderr); exit(10)
         }

@@ -52,6 +52,8 @@ jobs:
             [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
             [DllImport("user32.dll")] public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr h);
             [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr c);
+            [DllImport("user32.dll", SetLastError=true)] public static extern int GetWindowLong(IntPtr h,int index);
+            [DllImport("user32.dll", SetLastError=true)] public static extern int SetWindowLong(IntPtr h,int index,int value);
             [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int hgt,bool repaint);
           }
           '@
@@ -61,7 +63,10 @@ jobs:
           $form.Show()
           $hwnd=$process.MainWindowHandle
           $oldParent=[ViberProbe]::GetParent($hwnd)
+          $oldStyle=[ViberProbe]::GetWindowLong($hwnd,-16)
           try {
+            $newStyle=($oldStyle -band (-bnot [int]::MinValue)) -bor 0x40000000
+            [void][ViberProbe]::SetWindowLong($hwnd,-16,$newStyle)
             $ctx=[ViberProbe]::GetWindowDpiAwarenessContext($hwnd)
             Write-Host ("Viber-DPI-context=" + $ctx)
             $previousCtx=[ViberProbe]::SetThreadDpiAwarenessContext($ctx)
@@ -79,6 +84,7 @@ jobs:
             if (-not $process.Responding) { throw 'Viber became unresponsive after reparent' }
           } finally {
             [void][ViberProbe]::SetParent($hwnd,$oldParent)
+            [void][ViberProbe]::SetWindowLong($hwnd,-16,$oldStyle)
             $form.Close()
           }
           Write-Host 'UNTESTED: login, personal messages, translation, real-account embedding and multi-account'

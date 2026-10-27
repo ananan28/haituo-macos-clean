@@ -155,6 +155,8 @@ final class Delegate: NSObject, NSApplicationDelegate {
         status.stringValue="正在启动账号 \(slot)……首次准备可能需要几分钟。"
         if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess(); pending=false; buttons.forEach{$0.isEnabled=true}; status.stringValue="请允许屏幕录制，然后重启并重试。"; return }
         if !AXIsProcessTrusted() { let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary; _ = AXIsProcessTrustedWithOptions(options); pending=false; buttons.forEach{$0.isEnabled=true}; status.stringValue="请允许辅助功能权限，然后重试。"; return }
+        window.title="Fusion: Loading slot \(slot)"
+        if !NSRunningApplication.runningApplications(withBundleIdentifier:bundleID(slot)).isEmpty { connect(slot); return }
         DispatchQueue.global(qos:.userInitiated).async { [weak self] in
             do {
                 let target=try prepare(slot)

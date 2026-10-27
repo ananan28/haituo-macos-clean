@@ -43,6 +43,17 @@ jobs:
           $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,$process.Id)
           $found=$root.FindAll([System.Windows.Automation.TreeScope]::Children,$condition)
           Write-Host ("UIA top-level window count=" + $found.Count)
+          if ($found.Count -gt 0) {
+            $all=$found.Item(0).FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+            $types=@{}
+            foreach($element in $all) {
+              $name=$element.Current.ControlType.ProgrammaticName
+              if (-not $types.ContainsKey($name)) { $types[$name]=0 }
+              $types[$name]++
+            }
+            Write-Host ("Accessible-descendants=" + $all.Count)
+            Write-Host ("Control-types=" + ($types | ConvertTo-Json -Compress))
+          }
           Add-Type -AssemblyName System.Windows.Forms
           Add-Type -TypeDefinition @'
           using System;

@@ -41,7 +41,7 @@ jobs:
           <key>com.apple.security.network.server</key><true/>
           </dict></plist>
           PLIST
-          for index in 1 2; do
+          for index in 1 2 3 4 5; do
             app="/Applications/ViberSpike$index.app"
             ditto /Applications/Viber.app "$app"
             /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.haituo.viberspike$index" "$app/Contents/Info.plist"
@@ -52,12 +52,19 @@ jobs:
           done
           sleep 8
           user_home_path="$(python3 -c 'import os; print(os.path.expanduser("~"))')"
-          for index in 1 2; do
+          for index in 1 2 3 4 5; do
             path="/Applications/ViberSpike$index.app/Contents/MacOS/Viber"
             echo "--- spike $index ---"
             pgrep -ifl "$path" || { echo "UNTESTED: sandbox copy did not remain running"; exit 1; }
             container="$user_home_path/Library/Containers/com.haituo.viberspike$index"
             if [ -d "$container" ]; then echo "distinct-container-$index=present"; else echo "distinct-container-$index=absent"; exit 1; fi
+            count="$(find "$container/Data" -type f 2>/dev/null | wc -l | tr -d ' ')"
+            echo "container-$index-file-count=$count"
+            pid="$(pgrep -f "^$path" | head -1)"
+            open_count="$(lsof -p "$pid" 2>/dev/null | grep -F -c "$container" || true)"
+            echo "container-$index-open-file-count=$open_count"
+            windows="$(osascript -e "tell application \"System Events\" to get count of windows of first process whose unix id is $pid" 2>/dev/null || echo unavailable)"
+            echo "process-$index-window-count=$windows"
           done
           osascript -e 'tell application "System Events" to count every application process whose background only is false' || true
           echo 'UNTESTED: account login, account data separation, Keychain, usable windows, updates, translation'

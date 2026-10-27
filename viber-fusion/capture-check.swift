@@ -2,8 +2,18 @@ import AppKit
 import ApplicationServices
 import ScreenCaptureKit
 import CoreGraphics
+import CoreMedia
 import Foundation
 
+final class FrameCounter: NSObject, SCStreamOutput {
+    private let lock = NSLock()
+    private var value = 0
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen && sampleBuffer.isValid else { return }
+        lock.lock(); value += 1; lock.unlock()
+    }
+    func count() -> Int { lock.lock(); defer { lock.unlock() }; return value }
+}
 @main struct CaptureProbe {
     @MainActor static func main() async {
         _ = NSApplication.shared
@@ -27,6 +37,17 @@ import Foundation
             let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
             guard image.width > 100 && image.height > 100 else { fputs("EMPTY_IMAGE_DIMENSIONS\n", stderr); exit(13) }
             print("CAPTURE_OK width=\(image.width) height=\(image.height) window=\(window.windowID)")
+            config.minimumFrameInterval = CMTime(value: 1, timescale: 10)
+            config.queueDepth = 3
+            let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+            let frames = FrameCounter()
+            try stream.addStreamOutput(frames, type: .screen, sampleHandlerQueue: DispatchQueue(label: "viber.test.frames"))
+            try await stream.startCapture()
+            try await Task.sleep(nanoseconds: 4_000_000_000)
+            try await stream.stopCapture()
+            let frameCount = frames.count()
+            print("STREAM_FRAME_COUNT=\(frameCount)")
+            guard frameCount >= 2 else { fputs("STREAM_NOT_ENOUGH_FRAMES\\n", stderr); exit(15) }
             if AXIsProcessTrusted() {
                 var stack = [AXUIElementCreateApplication(process.processIdentifier)]
                 var count = 0, pressable = 0

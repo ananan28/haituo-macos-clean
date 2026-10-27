@@ -87,7 +87,7 @@ jobs:
           sleep 2
           status="$(osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to get value of every static text of window 1')"
           echo "Prototype status after click=$status"
-          [[ "$status" == *"点击已发送"* ]]
+          if [[ "$status" != *"点击已发送"* ]]; then echo "CLICK_FORWARDING_FAILED"; exit 9; fi
           swiftc viber-fusion/stack-check.swift -o "$RUNNER_TEMP/stack-check"
           "$RUNNER_TEMP/stack-check" "$host_pid" "$target_pid"
           osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to set size of window 1 to {800, 600}'

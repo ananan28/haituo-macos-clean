@@ -124,6 +124,18 @@ final class FrameSink: NSObject, SCStreamOutput {
         }
     }
 }
+func largestAXWindow(_ application: AXUIElement) -> AXUIElement? {
+    var raw:CFTypeRef?
+    guard AXUIElementCopyAttributeValue(application,kAXWindowsAttribute as CFString,&raw) == .success, let windows=raw as? [AXUIElement] else { return nil }
+    var selected: AXUIElement?, best: CGFloat = 0
+    for candidate in windows {
+        var value:CFTypeRef?, size=CGSize.zero
+        guard AXUIElementCopyAttributeValue(candidate,kAXSizeAttribute as CFString,&value) == .success, let rawSize=value, CFGetTypeID(rawSize)==AXValueGetTypeID(), AXValueGetValue(rawSize as! AXValue,.cgSize,&size) else { continue }
+        let area=size.width*size.height
+        if size.width >= 200 && size.height >= 150 && area > best { selected=candidate; best=area }
+    }
+    return selected
+}
 final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window:NSWindow!
     var viewer:FusionView!
@@ -175,8 +187,7 @@ final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 for n in 1...5 {
                     guard let candidate=NSRunningApplication.runningApplications(withBundleIdentifier:bundleID(n)).first else { continue }
                     let element=AXUIElementCreateApplication(candidate.processIdentifier)
-                    var raw:CFTypeRef?
-                    if AXUIElementCopyAttributeValue(element,kAXWindowsAttribute as CFString,&raw) == .success, let items=raw as? [AXUIElement], let item=items.first {
+                    if let item=largestAXWindow(element) {
                         let result=AXUIElementSetAttributeValue(item,kAXMinimizedAttribute as CFString,(n == slot ? kCFBooleanFalse : kCFBooleanTrue))
                         guard result == .success else { throw NSError(domain:"fusion",code:Int(result.rawValue),userInfo:[NSLocalizedDescriptionKey:"窗口切换失败，辅助功能权限或窗口状态异常"]) }
                     }
@@ -211,8 +222,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
               let row=rows.first, let bounds=row[kCGWindowBounds as String] as? [String:Any],
               let x=(bounds["X"] as? NSNumber)?.doubleValue, let y=(bounds["Y"] as? NSNumber)?.doubleValue,
               let width=(bounds["Width"] as? NSNumber)?.doubleValue, let height=(bounds["Height"] as? NSNumber)?.doubleValue else { return }
-        let application=AXUIElementCreateApplication(app.processIdentifier); var raw:CFTypeRef?
-        guard AXUIElementCopyAttributeValue(application,kAXWindowsAttribute as CFString,&raw) == .success, let windows=raw as? [AXUIElement], let source=windows.first else { return }
+        let application=AXUIElementCreateApplication(app.processIdentifier)
+        guard let source=largestAXWindow(application) else { viewer.target=nil; status.stringValue="无法识别 Viber 主窗口，已暂停操作。"; return }
         var desiredSize=CGSize(width:max(1,width-20),height:max(1,height-90))
         var desiredPosition=CGPoint(x:x+10,y:y+80)
         guard let size=AXValueCreate(.cgSize,&desiredSize),let pos=AXValueCreate(.cgPoint,&desiredPosition) else { return }
@@ -229,6 +240,8 @@ final class Delegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             _=AXUIElementSetAttributeValue(source,kAXMinimizedAttribute as CFString,kCFBooleanTrue)
             viewer.target=nil
+            viewer.image=nil; viewer.needsDisplay=true; generation += 1
+            window.title="Fusion: Alignment failed"
             status.stringValue="无法安全对齐 Viber 窗口，已暂停操作；请重新选择账号。"
         }
     }

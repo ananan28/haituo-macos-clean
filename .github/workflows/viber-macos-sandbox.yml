@@ -74,7 +74,7 @@ jobs:
           var missing = false
           for pid in pids {
               let windows = rows.filter { ($0[kCGWindowOwnerPID as String] as? Int) == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
-              print("on-screen-window-pid-\\(pid)=\\(windows.count)")
+              print("on-screen-window-pid-\(pid)=\(windows.count)")
               if windows.isEmpty { missing = true }
           }
           if pids.count != 5 || missing { exit(1) }

@@ -97,7 +97,7 @@ final class FusionView: NSView {
         }
         guard let hit=candidates.sorted(by:{$0.1 < $1.1}).first else { feedback?("此区域尚不支持点击；请在官方窗口操作"); return }
         let result=AXUIElementPerformAction(hit.0,kAXPressAction as CFString)
-        if result != .success { feedback?("点击转发失败：\(result.rawValue)") }
+        if result != .success { feedback?("点击转发失败：\(result.rawValue)") } else { feedback?("点击已发送") }
     }
     override func keyDown(with event: NSEvent) {
         guard !event.modifierFlags.contains(.command), let target=target, let cg=event.cgEvent else { super.keyDown(with:event); return }
@@ -138,7 +138,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
         root.addSubview(header)
         status=NSTextField(labelWithString:"选择账号。需要屏幕录制及辅助功能权限；聊天内容不会保存到此原型。")
         status.lineBreakMode = .byTruncatingTail; status.translatesAutoresizingMaskIntoConstraints=false; root.addSubview(status)
-        viewer=FusionView(); viewer.translatesAutoresizingMaskIntoConstraints=false; root.addSubview(viewer)
+        viewer=FusionView(); viewer.setAccessibilityElement(true); viewer.setAccessibilityRole(.group); viewer.setAccessibilityLabel("Fusion viewport"); viewer.translatesAutoresizingMaskIntoConstraints=false; root.addSubview(viewer)
         viewer.feedback={ [weak self] message in self?.status.stringValue=message }
         sink=FrameSink(viewer)
         NSLayoutConstraint.activate([header.leadingAnchor.constraint(equalTo:root.leadingAnchor,constant:12),header.topAnchor.constraint(equalTo:root.topAnchor,constant:10),header.heightAnchor.constraint(equalToConstant:32),status.leadingAnchor.constraint(equalTo:root.leadingAnchor,constant:12),status.topAnchor.constraint(equalTo:header.bottomAnchor,constant:5),status.trailingAnchor.constraint(equalTo:root.trailingAnchor,constant:-12),viewer.leadingAnchor.constraint(equalTo:root.leadingAnchor),viewer.trailingAnchor.constraint(equalTo:root.trailingAnchor),viewer.topAnchor.constraint(equalTo:status.bottomAnchor,constant:8),viewer.bottomAnchor.constraint(equalTo:root.bottomAnchor)])

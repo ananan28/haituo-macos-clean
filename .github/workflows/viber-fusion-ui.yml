@@ -2,7 +2,7 @@ name: Viber macOS integrated-view prototype
 on:
   push:
     branches: ['spike/viber-macos-fusion']
-    paths: ['viber-fusion/main.swift', '.github/workflows/viber-fusion-ui.yml']
+    paths: ['viber-fusion/main.swift', 'viber-fusion/integrated-click-test.swift', '.github/workflows/viber-fusion-ui.yml']
 permissions:
   contents: read
 jobs:
@@ -76,4 +76,14 @@ jobs:
             fi
             test "$ready" = 1
           done
+          swiftc viber-fusion/integrated-click-test.swift -o "$RUNNER_TEMP/integrated-click-test"
+          host_pid="$(pgrep -f "^$RUNNER_TEMP/fusion-test-runner" | head -1)"
+          target_pid="$(pgrep -f '/profiles/slot-5/Viber.app/Contents/MacOS/Viber' | head -1)"
+          test -n "$host_pid"
+          test -n "$target_pid"
+          "$RUNNER_TEMP/integrated-click-test" "$host_pid" "$target_pid"
+          sleep 2
+          status="$(osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to get value of every static text of window 1')"
+          echo "Prototype status after click=$status"
+          [[ "$status" == *"点击已发送"* ]]
           echo 'UNTESTED: installed app TCC, logged-in accounts, data isolation, typing, IME, scrolling, WhatsApp/Signal/Telegram integration'

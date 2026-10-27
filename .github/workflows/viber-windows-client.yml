@@ -50,6 +50,8 @@ jobs:
           public static class ViberProbe {
             [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr SetParent(IntPtr h, IntPtr p);
             [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+            [DllImport("user32.dll")] public static extern IntPtr GetWindowDpiAwarenessContext(IntPtr h);
+            [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr c);
             [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int hgt,bool repaint);
           }
           '@
@@ -60,7 +62,13 @@ jobs:
           $hwnd=$process.MainWindowHandle
           $oldParent=[ViberProbe]::GetParent($hwnd)
           try {
-            [void][ViberProbe]::SetParent($hwnd,$form.Handle)
+            $ctx=[ViberProbe]::GetWindowDpiAwarenessContext($hwnd)
+            Write-Host ("Viber-DPI-context=" + $ctx)
+            $previousCtx=[ViberProbe]::SetThreadDpiAwarenessContext($ctx)
+            $setResult=[ViberProbe]::SetParent($hwnd,$form.Handle)
+            $win32Error=[Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            Write-Host ("SetParent-return=" + $setResult + "; error=" + $win32Error)
+            if ($previousCtx -ne [IntPtr]::Zero) { [void][ViberProbe]::SetThreadDpiAwarenessContext($previousCtx) }
             $parent=[ViberProbe]::GetParent($hwnd)
             Write-Host ("Windows-reparent-equal=" + ($parent -eq $form.Handle))
             if ($parent -ne $form.Handle) { throw 'SetParent did not attach Viber window' }

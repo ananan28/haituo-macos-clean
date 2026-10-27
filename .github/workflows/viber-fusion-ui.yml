@@ -57,22 +57,23 @@ jobs:
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/Haituo Viber Fusion.app"
-          open -n "$APP"
+          cp "$APP/Contents/MacOS/HaituoViberFusion" "$RUNNER_TEMP/fusion-test-runner"
+          "$RUNNER_TEMP/fusion-test-runner" &
           sleep 3
           for index in 1 2 3 4 5; do
-            osascript -e "tell application \"System Events\" to tell process \"HaituoViberFusion\" to click button \"Viber $index\" of window 1"
+            osascript -e "tell application \"System Events\" to tell process \"fusion-test-runner\" to click button \"Viber $index\" of window 1"
             ready=0
             for attempt in {1..35}; do
-              title="$(osascript -e 'tell application "System Events" to tell process "HaituoViberFusion" to get name of window 1' 2>/dev/null || true)"
+              title="$(osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to get name of window 1' 2>/dev/null || true)"
               if [ "$title" = "Fusion: Ready slot $index" ]; then ready=1; break; fi
               sleep 1
             done
             echo "FUSION_SLOT_$index=$ready"
             if [ "$ready" != 1 ]; then
               echo "Prototype status:"
-              osascript -e 'tell application "System Events" to tell process "HaituoViberFusion" to get value of every static text of window 1' || true
+              osascript -e 'tell application "System Events" to tell process "fusion-test-runner" to get value of every static text of window 1' || true
               echo "Window title=$title"
             fi
             test "$ready" = 1
           done
-          echo 'UNTESTED: logged-in accounts, data isolation, typing, IME, scrolling, WhatsApp/Signal/Telegram integration'
+          echo 'UNTESTED: installed app TCC, logged-in accounts, data isolation, typing, IME, scrolling, WhatsApp/Signal/Telegram integration'
